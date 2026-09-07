@@ -7750,6 +7750,12 @@
     "Start again from the intro screens" : {
 
     },
+    "Stay anonymous" : {
+
+    },
+    "Stay on this phone’s anonymous session, or switch. Switching does not move the anonymous Firebase user onto that account." : {
+
+    },
     "Structure requirements" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7946,6 +7952,9 @@
           }
         }
       }
+    },
+    "Switch to that account" : {
+
     },
     "Syncing Session..." : {
       "localizations" : {
@@ -8265,6 +8274,12 @@
           }
         }
       }
+    },
+    "This %@ account already belongs to another CAOCAP account." : {
+
+    },
+    "This account already belongs to another CAOCAP account." : {
+
     },
     "This action cannot be undone. All your projects, nodes, and subscription data will be permanently deleted from our servers." : {
       "extractionState" : "manual",

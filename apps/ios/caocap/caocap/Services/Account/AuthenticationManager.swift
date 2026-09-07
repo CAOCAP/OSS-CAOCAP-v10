@@ -144,6 +144,22 @@ final class AuthenticationManager {
         try await linkOrSignIn(with: credential, provider: "GitHub")
     }
 
+    /// Signs into an existing provider-linked account, replacing the current session.
+    /// Use only after the user confirms they want to leave the anonymous UID.
+    func signInReplacingSession(with credential: AuthCredential) async throws {
+        let result = try await Auth.auth().signIn(with: credential)
+        logger.info("Signed into existing account.")
+        handle(user: result.user)
+    }
+
+    /// Fetches a new GitHub credential and signs into that existing account.
+    func signInWithGitHubReplacingSession() async throws {
+        let provider = OAuthProvider(providerID: "github.com")
+        provider.scopes = ["user:email"]
+        let credential = try await provider.credential(with: nil)
+        try await signInReplacingSession(with: credential)
+    }
+
     // MARK: - Sign Out
 
     func signOut() {
@@ -184,26 +200,11 @@ final class AuthenticationManager {
                 // FORCE UI UPDATE: Firebase listener might not fire immediately on link
                 handle(user: result.user)
             } catch let error as NSError {
-                guard let errorCode = AuthErrorCode(rawValue: error.code) else {
-                    throw error
+                if AuthAccountLinkConflict.isExistingOwner(error) {
+                    logger.warning("\(provider) credential already belongs to another account (code: \(error.code)).")
+                    throw AccountLinkConflict(provider: provider)
                 }
-                
-                let conflictCodes: [AuthErrorCode] = [
-                    .credentialAlreadyInUse,
-                    .emailAlreadyInUse,
-                    .accountExistsWithDifferentCredential
-                ]
-                
-                if conflictCodes.contains(errorCode) {
-                    // The credential belongs to a different account — sign in to that account instead.
-                    logger.warning("\(provider) credential conflict (code: \(error.code)). Switching to existing account.")
-                    let result = try await Auth.auth().signIn(with: credential)
-                    logger.info("Signed into existing \(provider) account.")
-                    handle(user: result.user)
-                } else {
-                    // It's a genuine error (network, cancel, etc) — rethrow
-                    throw error
-                }
+                throw error
             }
         } else {
             // Fresh sign-in (no anonymous session).

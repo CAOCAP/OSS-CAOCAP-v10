@@ -21,17 +21,19 @@ The feature's core contract is identity upgrade without data loss. Preserve anon
 5. If the user has a linked provider, app state becomes `.authenticated(uid:)`.
 6. When the user chooses a provider, the provider coordinator returns a Firebase credential.
 7. `AuthenticationManager` links the credential to the current anonymous account when possible.
-8. If Firebase reports that the credential belongs to an existing account, the manager signs into that account instead.
+8. If Firebase reports that the credential belongs to an existing account, the sign-in sheet asks **Stay anonymous** or **Switch to that account**. Stay leaves the anonymous UID. Switch signs in to the existing owner with a **fresh** provider credential (`signInReplacingSession`), never the spent Apple token from the failed `link`.
 
 ## Account Linking
 
 `linkOrSignIn(with:provider:)` is the most important method in this feature. It decides whether to:
 
 - link a provider credential to the current anonymous Firebase user;
-- switch into an existing account when the credential is already in use;
+- throw `AccountLinkConflict` when that identity already has a Firebase owner, so the sheet can ask Stay vs Switch;
 - sign in fresh when there is no anonymous session.
 
-When changing this flow, verify that local project data remains associated with the expected UID and that the UI updates after linking.
+`signInReplacingSession(with:)` is only for Switch. It must not be used to retry a failed Apple `link` with the same credential.
+
+When changing this flow, verify that local project data remains associated with the expected UID and that the UI updates after linking or switching.
 
 ## Provider Notes
 
@@ -58,10 +60,13 @@ When changing this flow, verify that local project data remains associated with 
 ## Verification Checklist
 
 - Fresh install starts anonymous sign-in and reaches a usable state.
-- Apple sign-in links the anonymous account and preserves work.
+- Apple sign-in links the anonymous account and preserves work when that Apple ID has no Firebase owner.
+- An Apple ID that already has an owner asks Stay vs Switch and does not show “Duplicate credential received.”
+- Stay anonymous leaves the current anonymous UID.
+- Switch uses a second Apple sheet and lands on the existing owner UID (the same UID as Mac for that Apple ID).
 - Google sign-in links the anonymous account and preserves work.
 - GitHub sign-in links or signs into the expected account.
-- Credential conflicts switch to the existing account without crashing.
+- Credential conflicts ask before switching and do not crash.
 - Sign-out returns to a valid session path.
 - Account deletion surfaces re-authentication or deletion failures clearly.
 - Terms and Privacy links open correctly.
@@ -72,6 +77,6 @@ Useful test coverage for this feature:
 
 - `AuthState` transitions from nil user, anonymous user, and provider-linked user.
 - anonymous bootstrap only runs when no session exists.
-- provider conflict handling in `linkOrSignIn`.
+- provider conflict detection in `AuthAccountLinkConflict`.
 - sign-in view loading/error state boundaries.
 - account deletion error propagation.

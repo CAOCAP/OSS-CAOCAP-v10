@@ -14,6 +14,7 @@ struct SignInView: View {
     @State private var googleCoordinator = GoogleSignInCoordinator()
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
+    @State private var pendingConflict: AccountLinkConflict?
 
     // Staggered entrance animation state
     @State private var headerVisible = false
@@ -199,6 +200,24 @@ struct SignInView: View {
             }
         }
         .onAppear { animateEntrance() }
+        .confirmationDialog(
+            pendingConflict.map { "This \($0.provider) account already belongs to another CAOCAP account." }
+                ?? "This account already belongs to another CAOCAP account.",
+            isPresented: Binding(
+                get: { pendingConflict != nil },
+                set: { if !$0 { pendingConflict = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Switch to that account") {
+                Task { await switchToExistingAccount() }
+            }
+            Button("Stay anonymous", role: .cancel) {
+                pendingConflict = nil
+            }
+        } message: {
+            Text("Stay on this phone’s anonymous session, or switch. Switching does not move the anonymous Firebase user onto that account.")
+        }
     }
 
     // MARK: - Staggered Entrance
@@ -246,6 +265,26 @@ struct SignInView: View {
         }
     }
 
+    private func switchToExistingAccount() async {
+        guard let conflict = pendingConflict else { return }
+        pendingConflict = nil
+        await perform {
+            switch conflict.provider {
+            case "Apple":
+                let credential = try await appleCoordinator.signIn()
+                try await authManager.signInReplacingSession(with: credential)
+            case "Google":
+                let credential = try await googleCoordinator.signIn()
+                try await authManager.signInReplacingSession(with: credential)
+            case "GitHub":
+                try await authManager.signInWithGitHubReplacingSession()
+            default:
+                throw AccountLinkConflict(provider: conflict.provider)
+            }
+            dismiss()
+        }
+    }
+
     /// Shared loading and error boundary for provider flows. The provider
     /// coordinators only return credentials; `AuthenticationManager` decides
     /// whether to link or sign into an existing account.
@@ -253,6 +292,8 @@ struct SignInView: View {
         withAnimation { isLoading = true; errorMessage = nil }
         do {
             try await action()
+        } catch let conflict as AccountLinkConflict {
+            pendingConflict = conflict
         } catch {
             withAnimation { errorMessage = error.localizedDescription }
         }
