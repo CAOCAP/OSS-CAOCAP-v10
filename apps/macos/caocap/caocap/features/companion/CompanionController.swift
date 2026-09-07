@@ -9,8 +9,9 @@ final class CompanionController {
     private(set) var origin: NSPoint
     private(set) var persona: CompanionPersona
     private(set) var isDragging = false
-    private(set) var mood: CompanionMood = .idle
     private(set) var isChatPresented = false
+
+    let play = CompanionPlay()
 
     private let cocaptainChat = AgentChatSession()
     private let costarChat = AgentChatSession()
@@ -25,6 +26,8 @@ final class CompanionController {
     private var chatPanel: AgentChatPanel?
     @ObservationIgnored
     private var screenObserver: NSObjectProtocol?
+    @ObservationIgnored
+    private var playTimer: Timer?
 
     init(defaults: UserDefaults = .standard) {
         if defaults.object(forKey: CompanionDefaults.isAwake) == nil {
@@ -48,6 +51,9 @@ final class CompanionController {
         } else {
             persona = .cocaptain
         }
+
+        play.persona = persona
+        play.isAwake = isAwake
     }
 
     func install() {
@@ -57,13 +63,20 @@ final class CompanionController {
             onDragBegan: { [weak self] in
                 self?.beginDrag()
             },
-            onDragEnded: { [weak self] didMove in
-                self?.endDrag(didMove: didMove)
+            onDragEnded: { [weak self] didMove, clickCount in
+                self?.endDrag(didMove: didMove, clickCount: clickCount)
+            },
+            onHoverChanged: { [weak self] hovering in
+                self?.setHovered(hovering)
+            },
+            onRightClick: { [weak self] in
+                self?.play.dispatch(.rightClicked)
             }
         )
         self.panel = panel
+        play.menuHost = panel.contentView
         origin = clamp(origin)
-        panel.setFrameOrigin(origin)
+        panel.setFrame(NSRect(origin: origin, size: CompanionLayout.panelSize), display: false)
 
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -77,20 +90,29 @@ final class CompanionController {
 
         if isAwake {
             panel.orderFrontRegardless()
+            startPlayTimer()
         }
     }
 
     func setAwake(_ awake: Bool) {
+        guard isAwake != awake else { return }
         isAwake = awake
+        play.isAwake = awake
         UserDefaults.standard.set(awake, forKey: CompanionDefaults.isAwake)
         guard let panel else { return }
         if awake {
             origin = clamp(origin)
             panel.setFrameOrigin(origin)
             panel.orderFrontRegardless()
+            startPlayTimer()
+            play.dispatch(.woke)
         } else {
             closeChat()
+            stopPlayTimer()
+            play.isHovered = false
+            play.resetTransientMotion()
             panel.orderOut(nil)
+            play.dispatch(.tucked)
         }
     }
 
@@ -99,8 +121,11 @@ final class CompanionController {
     }
 
     func setPersona(_ persona: CompanionPersona) {
+        guard self.persona != persona else { return }
         self.persona = persona
+        play.persona = persona
         UserDefaults.standard.set(persona.rawValue, forKey: CompanionDefaults.persona)
+        play.dispatch(.personaChanged)
         if !isAwake {
             setAwake(true)
         }
@@ -108,12 +133,15 @@ final class CompanionController {
 
     func beginDrag() {
         isDragging = true
+        play.isDragging = true
+        play.dispatch(.dragBegan)
         // Keep the draft, but tuck the chat while the user moves its agent.
         chatPanel?.orderOut(nil)
     }
 
-    func endDrag(didMove: Bool) {
+    func endDrag(didMove: Bool, clickCount: Int = 1) {
         isDragging = false
+        play.isDragging = false
         if didMove {
             let current = panel?.frame.origin ?? origin
             let clamped = clamp(current)
@@ -124,13 +152,20 @@ final class CompanionController {
                 panel?.setFrameOrigin(clamped)
             }
             persistOrigin()
+            play.dispatch(.dragEnded(didMove: true))
             if isChatPresented {
                 positionChat()
                 chatPanel?.orderFrontRegardless()
             }
         } else {
             origin = panel?.frame.origin ?? origin
-            toggleChat()
+            play.dispatch(.dragEnded(didMove: false))
+            if clickCount >= 2 {
+                play.dispatch(.doubleTapped)
+            } else {
+                play.dispatch(.tapped)
+                toggleChat()
+            }
         }
     }
 
@@ -160,14 +195,50 @@ final class CompanionController {
         if chatPanel == nil {
             chatPanel = AgentChatPanel(rootView: AgentChatView(controller: self))
         }
+        let alreadyPresented = isChatPresented
         isChatPresented = true
+        play.isChatPresented = true
         positionChat()
         chatPanel?.makeKeyAndOrderFront(nil)
+        if !alreadyPresented {
+            play.dispatch(.chatOpened)
+        }
     }
 
     func closeChat() {
+        guard isChatPresented else { return }
         isChatPresented = false
+        play.isChatPresented = false
         chatPanel?.orderOut(nil)
+        play.dispatch(.chatClosed)
+    }
+
+    private func setHovered(_ hovering: Bool) {
+        play.isHovered = hovering
+        play.dispatch(hovering ? .hovered : .unhovered)
+    }
+
+    private func startPlayTimer() {
+        stopPlayTimer()
+        let timer = Timer(timeInterval: 0.08, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.tickPlay()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        playTimer = timer
+        tickPlay()
+    }
+
+    private func stopPlayTimer() {
+        playTimer?.invalidate()
+        playTimer = nil
+    }
+
+    private func tickPlay() {
+        play.pointerLocation = NSEvent.mouseLocation
+        play.agentFrame = panel?.frame ?? NSRect(origin: origin, size: CompanionLayout.panelSize)
+        play.dispatch(.idleTick)
     }
 
     private func positionChat() {

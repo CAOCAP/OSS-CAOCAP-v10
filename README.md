@@ -64,7 +64,7 @@ The runnable applications currently require macOS and an Xcode version compatibl
 3. Select the `caocap` scheme and the **My Mac** destination.
 4. Run the project with **Product → Run** or `Command-R`.
 
-You should see the CAOCAP window, a cube status item in the menu bar, and CoCaptain on the desktop. Tap CoCaptain to open its compact chat UI. Prompts stay in memory for the current session; agent responses and computer use are not connected. The hub window still shows placeholder Hello World content.
+You should see the CAOCAP window, a cube status item in the menu bar, and CoCaptain on the desktop. Tap CoCaptain to open its compact chat UI. The floating Agent has local play (faces, bob, peek, spin) that is not an AI connection. Prompts stay in memory for the current session; agent responses and computer use are not connected. The hub window still shows placeholder Hello World content.
 
 ## Technology
 
@@ -86,6 +86,7 @@ Technology choices for the other clients and shared services have not been made.
 - [iOS setup](apps/ios/README.md) describes Firebase and package configuration for the iOS app.
 - [macOS setup](apps/macos/README.md) describes the current Mac shell and how to run it.
 - [macOS Agent plan](docs/macos-agent-plan.md) covers chat UX, real AI conversation, and the first computer-use task.
+- [macOS companion play](docs/macos-companion-play-plan.md) describes the floating Agent's local character toys.
 - [Agent guidance](AGENTS.md) describes repository conventions and validation commands.
 
 ## Roadmap

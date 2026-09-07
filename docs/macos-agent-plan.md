@@ -182,4 +182,4 @@ For each phase, record:
 
 Review what the working Agent experience teaches us before selecting the next slice. Explore, Build, and Collaborate remain essential to the CAOCAP hub, but implementing those surfaces is a separate plan. iOS remains an independent project; its large/medium sheets and long-press rules are not automatically Mac requirements.
 
-Related references: [product vision](product-vision.md), [SRS and open decisions](SRS.md), [macOS setup](../apps/macos/README.md), and [completed iOS stripping plan](ios-pivot-plan.md).
+Related references: [product vision](product-vision.md), [SRS and open decisions](SRS.md), [macOS setup](../apps/macos/README.md), [companion play](macos-companion-play-plan.md), and [completed iOS stripping plan](ios-pivot-plan.md).
