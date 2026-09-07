@@ -21,14 +21,14 @@ The feature's core contract is identity upgrade without data loss. Preserve anon
 5. If the user has a linked provider, app state becomes `.authenticated(uid:)`.
 6. When the user chooses a provider, the provider coordinator returns a Firebase credential.
 7. `AuthenticationManager` links the credential to the current anonymous account when possible.
-8. If Firebase reports that the credential belongs to an existing account, the sign-in sheet asks **Stay anonymous** or **Switch to that account**. Stay leaves the anonymous UID. Switch signs in to the existing owner with a **fresh** provider credential (`signInReplacingSession`), never the spent Apple token from the failed `link`.
+8. If Firebase reports that the credential belongs to an existing account, the sign-in sheet asks **Switch** (destructive) or **Cancel**. Cancel leaves the anonymous UID. Switch signs in to the existing owner with a **fresh** provider credential (`signInReplacingSession`), never the spent Apple token from the failed `link`.
 
 ## Account Linking
 
 `linkOrSignIn(with:provider:)` is the most important method in this feature. It decides whether to:
 
 - link a provider credential to the current anonymous Firebase user;
-- throw `AccountLinkConflict` when that identity already has a Firebase owner, so the sheet can ask Stay vs Switch;
+- throw `AccountLinkConflict` when that identity already has a Firebase owner, so the sheet can ask Switch vs Cancel;
 - sign in fresh when there is no anonymous session.
 
 `signInReplacingSession(with:)` is only for Switch. It must not be used to retry a failed Apple `link` with the same credential.
@@ -61,8 +61,8 @@ When changing this flow, verify that local project data remains associated with 
 
 - Fresh install starts anonymous sign-in and reaches a usable state.
 - Apple sign-in links the anonymous account and preserves work when that Apple ID has no Firebase owner.
-- An Apple ID that already has an owner asks Stay vs Switch and does not show “Duplicate credential received.”
-- Stay anonymous leaves the current anonymous UID.
+- An Apple ID that already has an owner asks Switch vs Cancel and does not show “Duplicate credential received.”
+- Cancel leaves the current anonymous UID.
 - Switch uses a second Apple sheet and lands on the existing owner UID (the same UID as Mac for that Apple ID).
 - Google sign-in links the anonymous account and preserves work.
 - GitHub sign-in links or signs into the expected account.

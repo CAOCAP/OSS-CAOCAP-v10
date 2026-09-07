@@ -14,7 +14,8 @@ struct SignInView: View {
     @State private var googleCoordinator = GoogleSignInCoordinator()
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
-    @State private var pendingConflict: AccountLinkConflict?
+    @State private var accountConflict: AccountLinkConflict?
+    @State private var isShowingAccountConflict = false
 
     // Staggered entrance animation state
     @State private var headerVisible = false
@@ -201,22 +202,21 @@ struct SignInView: View {
         }
         .onAppear { animateEntrance() }
         .confirmationDialog(
-            pendingConflict.map { "This \($0.provider) account already belongs to another CAOCAP account." }
+            accountConflict.map { "This \($0.provider) account already belongs to another CAOCAP account." }
                 ?? "This account already belongs to another CAOCAP account.",
-            isPresented: Binding(
-                get: { pendingConflict != nil },
-                set: { if !$0 { pendingConflict = nil } }
-            ),
+            isPresented: $isShowingAccountConflict,
             titleVisibility: .visible
         ) {
-            Button("Switch to that account") {
-                Task { await switchToExistingAccount() }
+            Button("Switch", role: .destructive) {
+                guard let conflict = accountConflict else { return }
+                accountConflict = nil
+                Task { await switchToExistingAccount(conflict) }
             }
-            Button("Stay anonymous", role: .cancel) {
-                pendingConflict = nil
+            Button("Cancel", role: .cancel) {
+                accountConflict = nil
             }
         } message: {
-            Text("Stay on this phone’s anonymous session, or switch. Switching does not move the anonymous Firebase user onto that account.")
+            Text("Stay with the work on this phone, or switch. Switching does not move this phone’s work into that account.")
         }
     }
 
@@ -265,9 +265,9 @@ struct SignInView: View {
         }
     }
 
-    private func switchToExistingAccount() async {
-        guard let conflict = pendingConflict else { return }
-        pendingConflict = nil
+    private func switchToExistingAccount(_ conflict: AccountLinkConflict) async {
+        // Let the confirmation dialog finish dismissing so the next Apple/Google sheet can present.
+        try? await Task.sleep(for: .milliseconds(400))
         await perform {
             switch conflict.provider {
             case "Apple":
@@ -293,7 +293,8 @@ struct SignInView: View {
         do {
             try await action()
         } catch let conflict as AccountLinkConflict {
-            pendingConflict = conflict
+            accountConflict = conflict
+            isShowingAccountConflict = true
         } catch {
             withAnimation { errorMessage = error.localizedDescription }
         }

@@ -7750,10 +7750,7 @@
     "Start again from the intro screens" : {
 
     },
-    "Stay anonymous" : {
-
-    },
-    "Stay on this phone’s anonymous session, or switch. Switching does not move the anonymous Firebase user onto that account." : {
+    "Stay with the work on this phone, or switch. Switching does not move this phone’s work into that account." : {
 
     },
     "Structure requirements" : {
@@ -7953,7 +7950,7 @@
         }
       }
     },
-    "Switch to that account" : {
+    "Switch" : {
 
     },
     "Syncing Session..." : {
