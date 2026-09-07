@@ -4,12 +4,11 @@ import Foundation
 import Observation
 import OSLog
 
-/// Listens for allowlisted openYouTube commands and opens them in the default browser.
+/// Listens for allowlisted openYouTube and openYouTubeVideo commands and opens them in the default browser.
 /// Off until the user enables requests from iPhone.
 @Observable
 @MainActor
 final class RemoteCommandRelay {
-    private static let youtubeURL = "https://www.youtube.com"
     private static let optInKey = "caocap.enableIPhoneRequests"
     private static let deviceIdKey = "caocap.deviceId"
 
@@ -109,7 +108,15 @@ final class RemoteCommandRelay {
         let data = document.data()
         let type = data["type"] as? String
         let urlString = data["url"] as? String
-        guard type == "openYouTube", urlString == Self.youtubeURL else {
+        let urlToOpen: String?
+        if type == "openYouTube", urlString == YouTubeWatchURL.homepage {
+            urlToOpen = YouTubeWatchURL.homepage
+        } else if type == "openYouTubeVideo" {
+            urlToOpen = YouTubeWatchURL.canonicalWatchURL(from: urlString)
+        } else {
+            urlToOpen = nil
+        }
+        guard let urlToOpen else {
             claimingIDs.remove(id)
             logger.warning("Ignored command \(id, privacy: .public) with disallowed type or URL.")
             return
@@ -117,7 +124,7 @@ final class RemoteCommandRelay {
 
         do {
             try await claim(document)
-            let opened = openYouTube()
+            let opened = openURL(urlToOpen)
             if opened {
                 try await complete(document.reference, status: "opened", timestampField: "openedAt")
             } else {
@@ -167,8 +174,8 @@ final class RemoteCommandRelay {
         ])
     }
 
-    private func openYouTube() -> Bool {
-        guard let url = URL(string: Self.youtubeURL) else { return false }
+    private func openURL(_ string: String) -> Bool {
+        guard let url = URL(string: string) else { return false }
         return NSWorkspace.shared.open(url)
     }
 }

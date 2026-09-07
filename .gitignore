@@ -29,3 +29,21 @@ playground.xcworkspace
 GoogleService-Info.plist
 firebase/functions/node_modules/
 firebase/functions/lib/
+
+# Android
+local.properties
+.gradle/
+*.iml
+.idea/
+
+# Windows
+bin/
+obj/
+.vs/
+*.user
+
+# Rust
+target/
+
+# Flatpak
+.flatpak-builder/

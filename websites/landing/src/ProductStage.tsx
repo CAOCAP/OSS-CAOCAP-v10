@@ -2,135 +2,270 @@ import { brand } from './brand.ts'
 
 export function ProductStage() {
   return (
-    <div className="relative mx-auto flex min-h-[36rem] max-w-5xl items-center justify-center px-4 py-10 lg:min-h-[42rem]">
+    <div className="relative mx-auto flex max-w-5xl flex-col items-center justify-center gap-8 px-4 py-8 lg:min-h-[40rem] lg:flex-row lg:items-center lg:gap-10">
       <div
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[34rem] w-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan/15 lg:h-[42rem] lg:w-[42rem]"
+        className="pointer-events-none absolute left-1/2 top-1/2 hidden h-[36rem] w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan/15 lg:block"
         aria-hidden="true"
       />
-      <div
-        className="pointer-events-none absolute left-1/2 top-1/2 h-[24rem] w-[24rem] -translate-x-1/2 -translate-y-1/2 rounded-full border border-purple/15 lg:h-[30rem] lg:w-[30rem]"
-        aria-hidden="true"
-      />
+      <PhoneWorkspace />
+      <NodeZoom />
+    </div>
+  )
+}
 
-      <PhoneHome />
-
-      <div className="absolute left-[4%] top-[18%] hidden w-56 lg:block">
-        <ChatCard />
-      </div>
-      <div className="absolute right-[2%] top-[14%] hidden w-52 lg:block">
-        <CanvasCard />
-      </div>
-      <div className="absolute bottom-[12%] right-[8%] hidden w-48 lg:block">
-        <CollabCard />
+function PhoneWorkspace() {
+  return (
+    <div className="relative z-10 w-[280px] rounded-[2.55rem] bg-[#1c1c1e] p-[9px] shadow-[0_40px_80px_rgba(26,36,51,0.18)] sm:w-[300px]">
+      <div className="relative overflow-hidden rounded-[2.05rem] bg-[#eef1f6]">
+        <StatusBar />
+        <WorkspaceHUD />
+        <div className="dotted-canvas relative h-[420px]">
+          <ConnectionLines />
+          <CanvasNode
+            className="left-[18%] top-[10%]"
+            tone="cyan"
+            label="Purpose"
+            title="Research brief"
+          />
+          <CanvasNode
+            className="left-[8%] top-[42%]"
+            tone="cyan"
+            label="Knowledge"
+            title="Sources"
+          />
+          <CanvasNode
+            className="right-[8%] top-[38%]"
+            tone="purple"
+            label="Action"
+            title="Draft reply"
+          />
+          <CanvasNode
+            className="top-[54%] left-[22%]"
+            tone="gold"
+            label="Condition"
+            title="If sources conflict"
+          />
+          <button
+            type="button"
+            tabIndex={-1}
+            aria-hidden="true"
+            className="absolute bottom-[7.6rem] right-3 flex h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-navy shadow-[0_8px_20px_rgba(26,36,51,0.28)]"
+          >
+            <img
+              src={brand.cocaptainAvatar}
+              alt=""
+              className="h-full w-full object-cover object-top"
+            />
+          </button>
+          <ChatSheet />
+        </div>
       </div>
     </div>
   )
 }
 
-function PhoneHome() {
+function StatusBar() {
   return (
-    <div className="relative z-10 w-[280px] rounded-[2.4rem] border border-black/10 bg-[#1c1c1e] p-[10px] shadow-[0_40px_80px_rgba(26,36,51,0.18)] sm:w-[300px]">
-      <div className="overflow-hidden rounded-[1.9rem] bg-[#f2f2f7]">
-        <div className="flex items-center justify-between px-5 pt-3 text-[10px] font-medium text-navy/70">
-          <span>9:41</span>
-          <span className="h-3.5 w-20 rounded-full bg-black/80" />
-          <span className="flex items-center gap-0.5">
-            <span className="h-1.5 w-3.5 rounded-sm bg-navy/40" />
-          </span>
+    <div className="relative z-20 flex items-center justify-between px-6 pt-2.5 text-[11px] font-semibold text-navy/80">
+      <span>9:41</span>
+      <span className="absolute left-1/2 top-1.5 h-6 w-[7.25rem] -translate-x-1/2 rounded-full bg-black" />
+      <span className="flex items-end gap-0.5">
+        <span className="h-1.5 w-1 rounded-[1px] bg-navy/50" />
+        <span className="h-2 w-1 rounded-[1px] bg-navy/50" />
+        <span className="h-2.5 w-1 rounded-[1px] bg-navy/70" />
+        <span className="ml-1 h-2.5 w-5 rounded-[3px] border border-navy/40">
+          <span className="ml-[1px] mt-[1px] block h-1.5 w-3.5 rounded-[1px] bg-navy/70" />
+        </span>
+      </span>
+    </div>
+  )
+}
+
+function WorkspaceHUD() {
+  return (
+    <div className="relative z-20 flex items-center justify-between px-3 pb-1 pt-2">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/70 text-sm text-navy/70 shadow-sm backdrop-blur">
+        ‹
+      </span>
+      <span className="rounded-full bg-white/75 px-3 py-1 text-[11px] font-semibold tracking-wide text-navy shadow-sm backdrop-blur">
+        CoCaptain
+      </span>
+      <span className="h-8 w-8" />
+    </div>
+  )
+}
+
+function ConnectionLines() {
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox="0 0 280 420"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M118 78 C 90 120, 78 160, 78 210"
+        stroke="#4db6ff"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.7"
+      />
+      <path
+        className="draw-link"
+        d="M162 78 C 198 120, 214 150, 214 198"
+        stroke="#a78bfa"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.75"
+      />
+      <path
+        d="M100 248 C 118 250, 130 252, 148 255"
+        stroke="#ffc83d"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.75"
+      />
+      <path
+        d="M200 248 C 180 252, 168 254, 158 255"
+        stroke="#a78bfa"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.45"
+      />
+    </svg>
+  )
+}
+
+function CanvasNode({
+  className,
+  tone,
+  label,
+  title,
+}: {
+  className: string
+  tone: 'cyan' | 'purple' | 'gold'
+  label: string
+  title: string
+}) {
+  const dot =
+    tone === 'cyan'
+      ? 'bg-cyan'
+      : tone === 'purple'
+        ? 'bg-purple'
+        : 'bg-gold'
+
+  return (
+    <div
+      className={`absolute w-[7.4rem] rounded-2xl border border-white/80 bg-white/80 p-2.5 shadow-[0_8px_24px_rgba(26,36,51,0.08)] backdrop-blur ${className}`}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className={`h-2 w-2 rounded-full ${dot}`} />
+        <p className="text-[9px] font-medium uppercase tracking-[0.12em] text-muted">
+          {label}
+        </p>
+      </div>
+      <p className="mt-1 text-[12px] font-semibold leading-tight">{title}</p>
+    </div>
+  )
+}
+
+function ChatSheet() {
+  return (
+    <div className="chat-enter absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-white/60 bg-white/95 px-3 pb-3 pt-2.5 shadow-[0_-8px_24px_rgba(26,36,51,0.08)] backdrop-blur">
+      <div className="mb-2 flex items-center gap-2">
+        <div className="h-6 w-6 overflow-hidden rounded-full bg-[#eef6ff]">
+          <img
+            src={brand.cocaptainAvatar}
+            alt=""
+            className="h-full w-full object-cover object-top"
+          />
         </div>
-        <div className="px-5 pb-4 pt-6">
-          <p className="text-[11px] text-muted">Home</p>
-          <div className="mt-1 flex items-end justify-between">
-            <h3 className="text-xl font-semibold tracking-tight">Your agents</h3>
-            <span className="rounded-full bg-cyan px-2.5 py-1 text-[10px] font-medium text-white">
-              Create
-            </span>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
-            <AgentTile name="CoCaptain" src={brand.cocaptainAvatar} />
-            <AgentTile name="CoStar" src={brand.costarAvatar} />
-          </div>
-        </div>
-        <div className="flex items-center justify-around border-t border-black/5 bg-white/70 px-6 py-2.5 text-[9px] text-muted">
-          <span>Explore</span>
-          <span className="font-semibold text-cyan">Home</span>
-          <span>Communities</span>
+        <p className="text-[11px] font-semibold">CoCaptain</p>
+      </div>
+      <p className="ml-8 rounded-2xl rounded-tr-sm bg-cyan/15 px-2.5 py-1.5 text-[11px] leading-snug text-navy">
+        Map how this agent should research a topic.
+      </p>
+      <p className="mt-1.5 mr-2 rounded-2xl rounded-tl-sm bg-[#f2f2f7] px-2.5 py-1.5 text-[11px] leading-snug text-navy/80">
+        Sources stay in Knowledge. Draft only if they agree.
+      </p>
+    </div>
+  )
+}
+
+function NodeZoom() {
+  return (
+    <div className="relative z-10 w-full max-w-[16rem] rounded-3xl border border-white/80 bg-white/90 p-4 shadow-[0_18px_50px_rgba(26,36,51,0.1)] backdrop-blur">
+      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+        Knowledge
+      </p>
+      <div className="mt-3 flex items-start gap-3">
+        <span className="mt-1 h-8 w-8 shrink-0 rounded-full bg-cyan/20" />
+        <div>
+          <p className="text-sm font-semibold">Sources</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-muted">
+            Notes and links the agent may use before it writes.
+          </p>
         </div>
       </div>
     </div>
   )
 }
 
-function AgentTile({ name, src }: { name: string; src: string }) {
+export function MiniHome() {
   return (
-    <div className="rounded-2xl bg-white px-2 pb-4 pt-2 shadow-sm">
-      <div className="flex justify-end">
-        <span className="text-[10px] text-muted">···</span>
-      </div>
-      <div className="mx-auto h-16 w-16 overflow-hidden rounded-full bg-[#eef6ff]">
+    <div className="grid grid-cols-2 gap-2">
+      <MiniAgent name="CoCaptain" src={brand.cocaptainAvatar} />
+      <MiniAgent name="CoStar" src={brand.costarAvatar} />
+    </div>
+  )
+}
+
+function MiniAgent({ name, src }: { name: string; src: string }) {
+  return (
+    <div className="rounded-xl bg-[#f2f2f7] px-2 py-3">
+      <div className="mx-auto h-10 w-10 overflow-hidden rounded-full bg-white">
         <img src={src} alt="" className="h-full w-full object-cover object-top" />
       </div>
-      <p className="mt-2 text-center text-[12px] font-semibold">{name}</p>
+      <p className="mt-1.5 text-center text-[10px] font-semibold">{name}</p>
     </div>
   )
 }
 
-function ChatCard() {
+export function MiniCanvas() {
   return (
-    <div className="rounded-2xl bg-white/90 p-4 shadow-[0_18px_50px_rgba(26,36,51,0.1)] backdrop-blur">
-      <div className="flex items-center gap-2">
-        <div className="h-8 w-8 overflow-hidden rounded-full bg-[#eef6ff]">
+    <div className="relative h-20">
+      <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
+        <line
+          x1="28%"
+          y1="38%"
+          x2="72%"
+          y2="62%"
+          stroke="#a78bfa"
+          strokeWidth="1.5"
+        />
+      </svg>
+      <span className="absolute left-1 top-2 rounded-full bg-cyan/20 px-2 py-0.5 text-[10px] font-medium">
+        Knowledge
+      </span>
+      <span className="absolute bottom-1 right-1 rounded-full bg-gold/30 px-2 py-0.5 text-[10px] font-medium">
+        Condition
+      </span>
+    </div>
+  )
+}
+
+export function MiniCollab() {
+  return (
+    <div>
+      <div className="flex -space-x-2">
+        <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-[#eef6ff]">
           <img
             src={brand.cocaptainAvatar}
             alt=""
             className="h-full w-full object-cover object-top"
           />
         </div>
-        <p className="text-xs font-medium">CoCaptain</p>
-      </div>
-      <p className="mt-3 rounded-2xl rounded-tl-sm bg-[#f2f2f7] px-3 py-2 text-[12px] leading-snug text-navy/80">
-        Ready when you are. What should this agent do first?
-      </p>
-    </div>
-  )
-}
-
-function CanvasCard() {
-  return (
-    <div className="rounded-2xl bg-white/90 p-4 shadow-[0_18px_50px_rgba(26,36,51,0.1)] backdrop-blur">
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-        Canvas
-      </p>
-      <div className="relative mt-4 h-24">
-        <span className="absolute left-2 top-1 rounded-full bg-cyan/20 px-2.5 py-1 text-[11px] font-medium text-navy">
-          Knowledge
-        </span>
-        <span className="absolute right-1 top-10 rounded-full bg-purple/20 px-2.5 py-1 text-[11px] font-medium text-navy">
-          Action
-        </span>
-        <span className="absolute bottom-0 left-8 rounded-full bg-gold/30 px-2.5 py-1 text-[11px] font-medium text-navy">
-          Condition
-        </span>
-      </div>
-    </div>
-  )
-}
-
-function CollabCard() {
-  return (
-    <div className="rounded-2xl bg-white/90 p-4 shadow-[0_18px_50px_rgba(26,36,51,0.1)] backdrop-blur">
-      <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-        Together
-      </p>
-      <div className="mt-3 flex -space-x-2">
-        <div className="h-9 w-9 overflow-hidden rounded-full border-2 border-white bg-[#eef6ff]">
-          <img
-            src={brand.cocaptainAvatar}
-            alt=""
-            className="h-full w-full object-cover object-top"
-          />
-        </div>
-        <div className="h-9 w-9 overflow-hidden rounded-full border-2 border-white bg-[#f4eefe]">
+        <div className="h-8 w-8 overflow-hidden rounded-full border-2 border-white bg-[#f4eefe]">
           <img
             src={brand.costarAvatar}
             alt=""
@@ -138,7 +273,7 @@ function CollabCard() {
           />
         </div>
       </div>
-      <p className="mt-2 text-[12px] text-muted">Review before you publish.</p>
+      <p className="mt-2 text-[11px] text-muted">Review before you publish.</p>
     </div>
   )
 }

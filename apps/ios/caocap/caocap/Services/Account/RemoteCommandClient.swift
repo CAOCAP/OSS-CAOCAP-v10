@@ -23,12 +23,40 @@ enum RemoteCommandReceipt: Equatable {
 }
 
 enum RemoteCommandChatCopy {
-    static func message(for receipt: RemoteCommandReceipt) -> String {
+    enum Subject {
+        case homepage
+        case video
+    }
+
+    static func askingMessage(for subject: Subject) -> String {
+        switch subject {
+        case .homepage:
+            return LocalizationManager.shared.localizedString("Asking your Mac to open YouTube…")
+        case .video:
+            return LocalizationManager.shared.localizedString("Asking your Mac to open this video…")
+        }
+    }
+
+    static func invalidURLMessage() -> String {
+        LocalizationManager.shared.localizedString("That YouTube link cannot be opened on your Mac")
+    }
+
+    static func message(for receipt: RemoteCommandReceipt, subject: Subject = .homepage) -> String {
         switch receipt {
         case .opened:
-            return LocalizationManager.shared.localizedString("YouTube opened on your Mac")
+            switch subject {
+            case .homepage:
+                return LocalizationManager.shared.localizedString("YouTube opened on your Mac")
+            case .video:
+                return LocalizationManager.shared.localizedString("This video opened on your Mac")
+            }
         case .failed, .none:
-            return LocalizationManager.shared.localizedString("Your Mac could not open YouTube")
+            switch subject {
+            case .homepage:
+                return LocalizationManager.shared.localizedString("Your Mac could not open YouTube")
+            case .video:
+                return LocalizationManager.shared.localizedString("Your Mac could not open this video")
+            }
         case .macRequestsOff, .pending:
             return LocalizationManager.shared.localizedString(
                 "Your Mac has requests from iPhone turned off"
@@ -80,6 +108,41 @@ enum RemoteCommandMapping {
             return dict["commandId"] as? String
         }
         return nil
+    }
+
+    /// Returns `https://www.youtube.com/watch?v=VIDEO_ID` when `raw` is an allowlisted watch URL.
+    static func canonicalWatchURL(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https",
+              let host = url.host?.lowercased() else {
+            return nil
+        }
+
+        let videoID: String?
+        if host == "youtu.be" || host == "www.youtu.be" {
+            let parts = url.path.split(separator: "/").map(String.init)
+            guard parts.count == 1 else { return nil }
+            videoID = parts[0]
+        } else if host == "youtube.com" || host == "www.youtube.com" {
+            let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            guard path == "watch" else { return nil }
+            videoID = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "v" })?
+                .value
+        } else {
+            return nil
+        }
+
+        guard let videoID, isYouTubeVideoID(videoID) else { return nil }
+        return "https://www.youtube.com/watch?v=\(videoID)"
+    }
+
+    private static func isYouTubeVideoID(_ value: String) -> Bool {
+        value.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil
     }
 }
 

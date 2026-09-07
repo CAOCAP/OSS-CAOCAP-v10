@@ -16,9 +16,9 @@ CAOCAP is transitioning to a collaborative AI agent platform. Agent discovery, b
 | --- | --- |
 | iOS | Agent-library Home, separate default-agent Workspaces and chat, Profile / Settings; Explore, Communities, and creation wizard placeholders; service configuration required |
 | macOS | SwiftUI shell with app icon, menu-bar status item, and a floating Agent with its own chat UI; AI responses, computer use, Explore, Build, and Collaborate are not implemented |
-| Android | Directory scaffold only |
-| Windows | Directory scaffold only |
-| Linux | Directory scaffold only |
+| Android | Kotlin + Jetpack Compose Hello World shell; Explore, Build, and Collaborate are not implemented |
+| Windows | C# WinUI 3 Hello World shell; Explore, Build, Collaborate, and computer use are not implemented |
+| Linux | GTK 4 + Rust (gtk4-rs / libadwaita) Hello World shell; Explore, Build, Collaborate, and computer use are not implemented |
 | Landing page | Throwaway waitlist UI prototype in [`websites/landing/`](websites/landing/); not a shipped site |
 | Web application | Directory scaffold only |
 
@@ -29,9 +29,9 @@ CAOCAP is transitioning to a collaborative AI agent platform. Agent discovery, b
 ├── apps/
 │   ├── ios/                 # iOS SwiftUI project and app assets
 │   ├── macos/               # macOS SwiftUI project and setup notes
-│   ├── android/             # Planned Android client
-│   ├── windows/             # Planned Windows client
-│   ├── linux/               # Planned Linux client
+│   ├── android/             # Android Compose Hello World shell
+│   ├── windows/             # Windows WinUI 3 Hello World shell
+│   ├── linux/               # Linux GTK 4 + Rust Hello World shell
 │   └── web/                 # Planned web client
 ├── websites/
 │   └── landing/             # Throwaway waitlist UI prototype; not a shipped site
@@ -48,7 +48,7 @@ CAOCAP is transitioning to a collaborative AI agent platform. Agent discovery, b
 
 ## Getting started
 
-The runnable applications currently require macOS and an Xcode version compatible with the projects' configured SDKs.
+Apple apps require macOS and an Xcode version compatible with the projects' configured SDKs. The Android shell can build with the Android SDK. The Windows and Linux shells need those operating systems (or Flatpak on Linux).
 
 ### iOS
 
@@ -66,6 +66,27 @@ The runnable applications currently require macOS and an Xcode version compatibl
 
 You should see the CAOCAP window, a cube status item in the menu bar, and CoCaptain on the desktop. Tap CoCaptain to open its compact chat UI. The floating Agent has local play (faces, bob, peek, spin) that is not an AI connection. Prompts stay in memory for the current session; agent responses and computer use are not connected. The hub window still shows placeholder Hello World content.
 
+### Android
+
+1. Follow the [Android setup notes](apps/android/README.md).
+2. Open [the Android Gradle project](apps/android/caocap/) in Android Studio, or run `./apps/android/caocap/gradlew -p apps/android/caocap :app:assembleDebug` from the repository root.
+
+You should see a **CAOCAP** activity that shows Hello World. Explore, Build, and Collaborate are not implemented.
+
+### Windows
+
+1. On Windows, follow the [Windows setup notes](apps/windows/README.md).
+2. Open [the WinUI 3 solution](apps/windows/caocap/caocap.sln) in Visual Studio 2022.
+
+This does not build on macOS. You should see a **CAOCAP** window that shows Hello World. The floating Agent and computer use are not implemented.
+
+### Linux
+
+1. Follow the [Linux setup notes](apps/linux/README.md). Prefer Flatpak with the GNOME 48 SDK.
+2. From [apps/linux/caocap/](apps/linux/caocap/), build with `flatpak-builder` or `cargo run` if host GTK 4 and libadwaita devel packages are new enough.
+
+You should see a **CAOCAP** window that shows Hello World. The floating Agent and computer use are not implemented.
+
 ### Landing page prototype
 
 A local waitlist UI prototype lives in [`websites/landing/`](websites/landing/). Run `npm install && npm run dev` there. It is not a production site and does not collect email.
@@ -74,12 +95,13 @@ A local waitlist UI prototype lives in [`websites/landing/`](websites/landing/).
 
 Technology currently present in the repository:
 
-- Swift
-- SwiftUI
-- Xcode projects for iOS and macOS
+- Swift and SwiftUI (iOS and macOS Xcode projects)
+- Kotlin and Jetpack Compose (Android Hello World shell)
+- C# WinUI 3 / Windows App SDK (Windows Hello World shell)
+- Rust gtk4-rs and libadwaita (Linux Hello World shell)
 - A throwaway Vite + React + Tailwind waitlist prototype under `websites/landing/` (not a production stack decision)
 
-Technology choices for the other clients and shared services have not been made.
+Shared services and the web client stack have not been selected. These Hello World shells do not implement Explore, Build, or Collaborate.
 
 ## Documentation
 
@@ -90,6 +112,9 @@ Technology choices for the other clients and shared services have not been made.
 - [iOS Home redesign plan](docs/ios-home-redesign-plan.md) records agreed navigation, implementation steps, and open decisions.
 - [iOS setup](apps/ios/README.md) describes Firebase and package configuration for the iOS app.
 - [macOS setup](apps/macos/README.md) describes the current Mac shell and how to run it.
+- [Android setup](apps/android/README.md) describes the Compose Hello World shell.
+- [Windows setup](apps/windows/README.md) describes the WinUI 3 Hello World shell.
+- [Linux setup](apps/linux/README.md) describes the GTK 4 + Rust Hello World shell and the Flatpak/GNOME SDK build.
 - [macOS Agent plan](docs/macos-agent-plan.md) covers chat UX, real AI conversation, and the first computer-use task.
 - [macOS companion play](docs/macos-companion-play-plan.md) describes the floating Agent's local character toys.
 - [Agent guidance](AGENTS.md) describes repository conventions and validation commands.

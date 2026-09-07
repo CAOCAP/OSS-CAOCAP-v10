@@ -2,10 +2,8 @@ import { useState, type FormEvent } from 'react'
 
 export function WaitlistForm({
   id = 'waitlist-email',
-  compact = false,
 }: {
   id?: string
-  compact?: boolean
 }) {
   const [email, setEmail] = useState('')
   const [joined, setJoined] = useState(false)
@@ -27,9 +25,7 @@ export function WaitlistForm({
   return (
     <form
       onSubmit={onSubmit}
-      className={`flex w-full items-center gap-1 rounded-full border border-cyan/25 bg-white p-1 shadow-[0_12px_40px_rgba(77,182,255,0.18)] ${
-        compact ? 'max-w-md' : 'max-w-lg'
-      }`}
+      className="flex w-full max-w-lg items-center gap-1 rounded-full border border-cyan/25 bg-white p-1 shadow-[0_12px_40px_rgba(77,182,255,0.18)]"
     >
       <label className="sr-only" htmlFor={id}>
         Email

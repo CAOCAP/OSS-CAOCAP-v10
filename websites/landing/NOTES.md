@@ -2,25 +2,24 @@
 
 **Question:** What should the CAOCAP waitlist page look like?
 
-**Verdict (2026-09-07):** A light product landing with the app in the middle is the direction. Keep it.
+**Verdict:** A light product landing with the **Workspace** in the middle — canvas nodes, CoCaptain chat on the same device. Keep that direction.
 
-## What won
-
-A quiet marketing page whose center is the **product in the room** — not a mascot poster and not a serif manifesto.
+The phone is a composed mock of the intended canvas, not a screenshot. Real Workspaces still open empty.
 
 Keep:
 
-- Pale field, floating pill nav, two-tone sans headline, pill waitlist CTA
-- iPhone Home mock (agent grid) with CoCaptain / CoStar as **app avatars**, plus floating chat / canvas / together cards
-- Explore / Build / Collaborate as product cards, not chapters of an essay
-- Characters only as they appear in the apps
+- Pale field, floating pill nav, two-tone sans headline, one pill waitlist
+- Workspace mock (dotted canvas, glass nodes, in-device chat)
+- CoCaptain / CoStar only as they appear in the apps
+- Explore / Build / Collaborate as cards with mini UI
 
 Do not return to:
 
-- Chibi hero art, comic borders, offset shadows, rounded “kids’ app” type
-- Dark editorial splash with no product in it
-- Three layout-switcher variants of a generic waitlist template
+- Chibi hero art or comic chrome
+- Empty Home grid as the hero
+- Dark editorial splash with no product
+- Three layout-switcher variants
 
 ## Still throwaway
 
-Email is in-memory only. Vite + React + Tailwind is a prototype vehicle, not a production stack decision. When this is rewritten as the real site, keep the direction and delete leftover prototype scaffolding.
+Email is in-memory only. Vite + React + Tailwind is a prototype vehicle, not a production stack decision.

@@ -1,6 +1,6 @@
 # Landing waitlist prototype
 
-Throwaway UI. Direction: a light product landing — two-tone type, the app in the room, waitlist as the CTA.
+Throwaway UI. Direction: a light product landing with a composed Workspace in the hero, waitlist as the CTA.
 
 Email submit is in-memory only. This is not a production site.
 
