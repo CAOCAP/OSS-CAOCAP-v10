@@ -30,6 +30,10 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+        with:
+          # Full clone fails on NTFS: docs/research/WALLYELDIN E./ ends with a dot.
+          sparse-checkout: |
+            apps/windows
 
       - name: Set up .NET 8 SDK
         uses: actions/setup-dotnet@v4

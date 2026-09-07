@@ -23,7 +23,7 @@ This project is unpackaged (`WindowsPackageType` is `None`). It does not build o
 
 GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflows/windows.yml) builds Debug|x64 on `windows-latest` with the .NET 8 SDK, then launches the unpackaged exe and uploads the build output plus a screenshot artifact of the **CAOCAP** Hello World window. The capture step uses a small Windows.Graphics.Capture helper under [scripts/wgc-capture](scripts/wgc-capture) because GDI `BitBlt` / `PrintWindow` often record WinUI content as a blank frame.
 
-That job is compile-and-capture CI. It is not a substitute for local Visual Studio 2022, and it does not run Explore, Build, or Collaborate (those are not implemented).
+The job uses sparse checkout of `apps/windows` only. A full clone fails on NTFS because `docs/research/WALLYELDIN E./` ends with a dot (a Windows-invalid directory name). Research files are left as imported; they are not required to compile this shell.
 
 That job is compile-and-capture CI. It is not a substitute for local Visual Studio 2022, and it does not run Explore, Build, or Collaborate (those are not implemented).
 
