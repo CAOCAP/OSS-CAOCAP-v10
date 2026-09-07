@@ -1,0 +1,28 @@
+id: com.ficruty.caocap
+runtime: org.gnome.Platform
+runtime-version: "48"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: caocap
+finish-args:
+  - --share=ipc
+  - --device=dri
+  - --socket=fallback-x11
+  - --socket=wayland
+modules:
+  - name: caocap
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/caocap/cargo
+      build-args:
+        - --share=network
+    build-commands:
+      - cargo build --release --verbose
+      - install -Dm755 ./target/release/caocap /app/bin/caocap
+      - install -Dm644 ./data/com.ficruty.caocap.desktop /app/share/applications/com.ficruty.caocap.desktop
+    sources:
+      - type: dir
+        path: .

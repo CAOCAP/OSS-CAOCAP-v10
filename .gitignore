@@ -31,7 +31,30 @@ playground.xcworkspace
 
 # Firebase
 GoogleService-Info.plist
+google-services.json
 firebase/functions/node_modules/
 firebase/functions/lib/
+
+# Android
+local.properties
+.gradle/
+.kotlin/
+*.iml
+.idea/
+*.apk
+*.aab
+
+# Windows
+bin/
+obj/
+.vs/
+*.user
+
+# Rust
+target/
+
+# Flatpak
+.flatpak-builder/
+build-dir/
 firebase/hosting-public/
 /firebase/.firebase/

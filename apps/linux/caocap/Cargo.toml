@@ -1,0 +1,10 @@
+[package]
+name = "caocap"
+version = "0.1.0"
+edition = "2021"
+description = "CAOCAP Linux Hello World shell"
+publish = false
+
+[dependencies]
+adw = { package = "libadwaita", version = "0.8" }
+gtk = { package = "gtk4", version = "0.10" }

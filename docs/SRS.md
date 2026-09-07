@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Document version | 0.6 Draft |
+| Document version | 0.7 Draft |
 | Product | CAOCAP |
 | Status | Draft for review |
 | Owner | Azzam Alrashed |
@@ -18,6 +18,7 @@
 | 0.4 Draft | 2026-09-06 | Recorded mindmaps for agent context and knowledge, flowcharts for logic and conditional flows, and iOS and macOS as the first development platforms. Updated requirements and remaining design decisions. |
 | 0.5 Draft | 2026-09-06 | Documented the playful building experience, with proposed requirements for canvas feedback, execution highlighting, first-run celebrations, visual clarity, and reduced motion. |
 | 0.6 Draft | 2026-09-06 | Recorded the current macOS shell (app icon, menu-bar status item, floating CoCaptain companion) without adding companion requirements. |
+| 0.7 Draft | 2026-09-07 | Recorded Android (Kotlin + Jetpack Compose), Windows (C# WinUI 3), and Linux (GTK 4 + Rust) Hello World shells without adding client feature requirements or resolving `CAO-OI-007`. |
 
 ## 1. Introduction
 
@@ -53,6 +54,9 @@ This SRS is intended for the product owner and contributors responsible for revi
 | `REF-004` | [Repository guidance](../AGENTS.md) | Current | Development conventions and validation commands. |
 | `REF-005` | [iOS setup](../apps/ios/README.md) | Current | Configuration required by the existing iOS application. |
 | `REF-006` | [macOS setup](../apps/macos/README.md) | Current | Current Mac shell and how to run it. |
+| `REF-007` | [Android setup](../apps/android/README.md) | Current | Compose Hello World shell and how to build it. |
+| `REF-008` | [Windows setup](../apps/windows/README.md) | Current | WinUI 3 Hello World shell and how to build it. |
+| `REF-009` | [Linux setup](../apps/linux/README.md) | Current | GTK 4 + Rust Hello World shell and the Flatpak/GNOME SDK build. |
 
 ### 1.5 Requirement conventions
 
@@ -128,9 +132,12 @@ The following describes the current repository, not a commitment to feature pari
 | --- | --- |
 | iOS | SwiftUI canvas + CoCaptain + sign-in shell targeting iOS 26 or later, with a Pro purchase screen, unit tests, and UI tests. Home is a local agent library with CoCaptain and CoStar. Each opens a separate full-screen Workspace with the existing canvas and chat. Explore, Communities, and the creation wizard have placeholder destinations; discovery, acquisition, shared building, mind maps, and flowcharts remain planned. See the [iOS Home redesign plan](ios-home-redesign-plan.md). A provider-linked session publishes a Firestore device heartbeat; Profile can list other devices and request an allowlisted Open YouTube on Mac command. CoCaptain Agent mode can send that homepage command, or send an allowlisted documentation URL on developer.apple.com / Swift docs; Ask / Plan cannot. Service configuration is described in `REF-005`. |
 | macOS | SwiftUI application targeting macOS 26.5, with an app icon, menu-bar status item, and floating Agent that opens its own compact chat UI. Firebase initializes from the shared iOS Apple app (`com.Ficruty.caocap`). The status menu can Sign in with Apple and restore that Firebase UID. A signed-in Mac publishes a Firestore device heartbeat and can list other devices on that account. An opt-in toggle can claim an allowlisted openYouTube homepage command, openYouTubeVideo watch URL, or openURL documentation page and open it in the default browser. Prompts are session-only and are not sent to an agent service; computer use is not implemented. The hub window is still placeholder content. There is no test target. Setup is described in `REF-006`. |
-| Android, Windows, Linux, and web app | Directory scaffolds; their frameworks and shared services have not been selected. |
+| Android | Kotlin + Jetpack Compose Hello World targeting API 26 or later (`com.ficruty.caocap`). A single activity shows placeholder Hello World content. Explore, Build, Collaborate, Firebase, and device presence are not implemented. Setup is described in `REF-007`. |
+| Windows | Unpackaged C# WinUI 3 / Windows App SDK Hello World. A single window shows placeholder Hello World content. Explore, Build, Collaborate, the floating Agent, computer use, and Firebase are not implemented. The project does not build on macOS. Setup is described in `REF-008`. |
+| Linux | GTK 4 + Rust (`gtk4-rs` and libadwaita) Hello World (`com.ficruty.caocap`). A single window shows placeholder Hello World content. Explore, Build, Collaborate, the floating Agent, computer use, and Firebase are not implemented. Contributors should prefer the Flatpak/GNOME SDK path. Setup is described in `REF-009`. |
+| Web app | Directory scaffold; its framework and shared services have not been selected. |
 | Landing page | Vite waitlist prototype in `websites/landing/`, hosted on Firebase Hosting. Joining posts to the `joinWaitlist` function, which writes `waitlist/{email}` in Firestore. No notification email is sent yet. This is not the planned web application. |
-| Development | Apple app builds require macOS and full Xcode with compatible SDKs; see `REF-004`. |
+| Development | Apple app builds require macOS and full Xcode with compatible SDKs; see `REF-004`. Android builds require a JDK 17 and the Android SDK. Windows and Linux builds are not part of the Apple validation path. |
 
 The collaborative platform capabilities described here are planned. Existing app code and dependencies do not establish the architecture or provider choices for those capabilities. Client responsibilities and release support are tracked in `CAO-OI-007`.
 
@@ -279,7 +286,7 @@ The color-independent cues and reduced-motion behavior above are proposed access
 | --- | --- | --- | --- | --- |
 | `CAO-CON-001` | Product development shall begin with iOS and macOS before development of the other client platforms. | Approved | `REF-002`: Development order; `REF-003`: Roadmap | Inspect the development plan and work milestones for iOS and macOS preceding other client development. |
 
-Detailed client responsibilities, release dates, and feature scope remain open in `CAO-OI-007`. Existing repository conventions and build requirements are recorded in `REF-004`; they do not select the architecture of future clients or shared services.
+Detailed client responsibilities, release dates, supported OS versions, and feature scope remain open in `CAO-OI-007`. The Android, Windows, and Linux Hello World stacks are recorded in `REF-007` through `REF-009`; they do not assign product features or release support to those clients. Shared services and the web client stack remain unselected.
 
 No additional provider, commercial, or regulatory constraints have been approved. Unresolved choices are listed in section 6 rather than expressed as constraints.
 
@@ -341,7 +348,7 @@ These decisions are unresolved and do not authorize a particular implementation 
 
 The product owner is responsible for reviewing requirement proposals, resolving product decisions, and approving release scope. Contributors may propose changes with their rationale and affected requirements.
 
-A requirement is **Proposed** until explicitly approved, **Approved** once its behavior is agreed, or **Retired** when it is superseded or removed. In version 0.6, the requirements in sections 4.1–4.4 remain Proposed with priority Unassigned; `CAO-CON-001` is Approved. The mindmap and flowchart building approach and playful product direction are confirmed, while their detailed interaction, execution, and visual requirements remain proposed. Record further approval and release-priority decisions against the affected identifiers.
+A requirement is **Proposed** until explicitly approved, **Approved** once its behavior is agreed, or **Retired** when it is superseded or removed. In version 0.7, the requirements in sections 4.1–4.4 remain Proposed with priority Unassigned; `CAO-CON-001` is Approved. The mindmap and flowchart building approach and playful product direction are confirmed, while their detailed interaction, execution, and visual requirements remain proposed. Record further approval and release-priority decisions against the affected identifiers.
 
 Implementation and verification status are tracked separately from approval, with references to changes and test evidence. Approval does not imply implementation, and implementation does not imply acceptance.
 

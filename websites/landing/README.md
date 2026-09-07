@@ -14,7 +14,7 @@ npm run dev
 
 Open the local URL Vite prints (usually `http://localhost:5173`). The dev server proxies `POST /joinWaitlist` to the deployed function.
 
-Hero images in `public/app/` are simulator captures of Home, Workspace, and CoCaptain chat.
+The hero is a composed preview of the intended Workspace canvas and chat. Simulator captures of the current app remain in `public/app/` for reference.
 
 ## Deploy
 

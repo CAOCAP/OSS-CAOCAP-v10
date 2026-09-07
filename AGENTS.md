@@ -6,12 +6,13 @@ CAOCAP is a platform where people discover, build, and publish AI agents togethe
 
 Read `README.md`, `docs/product-vision.md`, and the relevant sections of `docs/SRS.md` before implementing product behavior. Requirements describe planned capabilities and should not be treated as evidence of implemented functionality.
 
-For iOS setup and service configuration, see `apps/ios/README.md`. For the macOS shell, see `apps/macos/README.md`.
+For iOS setup and service configuration, see `apps/ios/README.md`. For the macOS shell, see `apps/macos/README.md`. For the Android, Windows, and Linux Hello World shells, see `apps/android/README.md`, `apps/windows/README.md`, and `apps/linux/README.md`.
 
 ## Structure and conventions
 
 - `apps/ios/` and `apps/macos/` contain independent SwiftUI Xcode projects. Keep their internal `caocap/` paths intact when moving project folders.
-- Other directories under `apps/` and `websites/landing/` are placeholders; no frameworks or shared services have been selected for them.
+- `apps/android/`, `apps/windows/`, and `apps/linux/` contain independent Hello World clients (Kotlin + Jetpack Compose, C# WinUI 3, GTK 4 + Rust). They are not shared with the Apple apps and do not implement Explore, Build, or Collaborate.
+- `apps/web/` remains a web-client placeholder. `websites/landing/` contains a hosted waitlist prototype backed by Firebase; its visual stack is not a production web-app decision.
 - Use lowercase names for new organizational directories. Preserve imported filenames and Xcode resource names.
 - Keep app images, colors, and icons in the existing `Assets.xcassets` catalogs. Keep audio, localization, and other app resources in their existing resource folders. Shared brand artwork belongs in `assets/brand/`; research belongs in `docs/research/`.
 - Consult the brand asset manifest (`assets/brand/cdl-v2/MANIFEST.md`) and research index (`docs/research/README.md`) before reusing imported material. Preserve source attribution and license notices in imported files.
@@ -20,7 +21,7 @@ For iOS setup and service configuration, see `apps/ios/README.md`. For the macOS
 
 ## Validation
 
-Run commands from the repository root. Builds require full Xcode with SDKs supporting the projects' configured deployment targets; Command Line Tools alone are insufficient.
+Run commands from the repository root. Apple app builds require full Xcode with SDKs supporting the projects' configured deployment targets; Command Line Tools alone are insufficient.
 
 If the active developer directory points to Command Line Tools, prefix Xcode commands with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
 
@@ -31,8 +32,13 @@ xcodebuild -project apps/ios/caocap/caocap.xcodeproj -scheme caocap -configurati
 # macOS build without signing
 xcodebuild -project apps/macos/caocap/caocap.xcodeproj -scheme caocap -configuration Debug -destination 'platform=macOS' -derivedDataPath /tmp/caocap-macos-build CODE_SIGNING_ALLOWED=NO build
 
+# Android debug APK (requires JDK 17 and ANDROID_HOME / an SDK)
+./apps/android/caocap/gradlew -p apps/android/caocap :app:assembleDebug
+
 git diff --check
 ```
+
+Windows builds need Visual Studio 2022 and the Windows App SDK on Windows; they are not part of the Apple validation path. Linux builds need GTK 4 / libadwaita on Linux, or Flatpak with the GNOME SDK as described in `apps/linux/README.md`; they are not required on macOS.
 
 The iOS project includes `caocapTests` and `caocapUITests`; macOS has no test target. For macOS UI changes, run the app on **My Mac** and check wake/tuck, CoCaptain/CoStar switch, drag, tap-to-toggle Agent chat, prompt entry and draft retention, and that the chat's Open CAOCAP button focuses the existing hub window. See `apps/macos/README.md` for the chat checks.
 

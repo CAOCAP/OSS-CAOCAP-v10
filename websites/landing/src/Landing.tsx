@@ -38,6 +38,9 @@ export function Landing() {
       </section>
 
       <ProductStage />
+      <p className="px-6 pb-6 text-center text-xs text-muted">
+        Concept preview of the planned building experience.
+      </p>
 
       <section className="mx-auto flex max-w-3xl flex-col items-center gap-3 px-6 pb-16 text-center sm:flex-row sm:justify-center sm:gap-16">
         <p className="text-sm text-muted">iOS and macOS · coming soon</p>
