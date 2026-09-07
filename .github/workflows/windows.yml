@@ -1,0 +1,91 @@
+name: Windows
+
+on:
+  push:
+    paths:
+      - "apps/windows/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+    paths:
+      - "apps/windows/**"
+      - ".github/workflows/windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-screenshot:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      DOTNET_NOLOGO: "1"
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build Debug x64
+        run: >
+          dotnet build apps/windows/caocap/caocap.sln
+          -c Debug
+          -p:Platform=x64
+          --verbosity minimal
+
+      - name: Build screenshot helper
+        run: >
+          dotnet build apps/windows/scripts/wgc-capture/wgc-capture.csproj
+          -c Release
+          --verbosity minimal
+
+      - name: Locate outputs
+        id: paths
+        run: |
+          $exe = Get-ChildItem -Path "apps/windows/caocap/caocap/bin" -Recurse -Filter "caocap.exe" |
+            Where-Object { $_.FullName -match '\\x64\\Debug\\' } |
+            Select-Object -First 1
+          if (-not $exe) { throw "caocap.exe not found under bin/x64/Debug" }
+          $wgc = Get-ChildItem -Path "apps/windows/scripts/wgc-capture/bin" -Recurse -Filter "wgc-capture.exe" |
+            Select-Object -First 1
+          if (-not $wgc) { throw "wgc-capture.exe not found" }
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "exe=$($exe.FullName)"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "outdir=$($exe.Directory.FullName)"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "wgc=$($wgc.FullName)"
+          Write-Host "exe=$($exe.FullName)"
+          Write-Host "outdir=$($exe.Directory.FullName)"
+          Write-Host "wgc=$($wgc.FullName)"
+
+      - name: Launch and screenshot
+        run: |
+          New-Item -ItemType Directory -Force -Path screenshots | Out-Null
+          & apps/windows/scripts/capture-hello-world.ps1 `
+            -ExePath "${{ steps.paths.outputs.exe }}" `
+            -OutputDir screenshots `
+            -WgcCaptureExe "${{ steps.paths.outputs.wgc }}"
+
+      - name: Upload unpackaged Debug x64 output
+        uses: actions/upload-artifact@v4
+        if: always() && steps.paths.outcome == 'success'
+        with:
+          name: caocap-windows-x64-debug
+          path: ${{ steps.paths.outputs.outdir }}
+          if-no-files-found: error
+
+      - name: Upload screenshot
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: caocap-windows-screenshot
+          path: screenshots/
+          if-no-files-found: warn

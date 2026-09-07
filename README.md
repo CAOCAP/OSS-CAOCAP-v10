@@ -78,7 +78,7 @@ You should see a **CAOCAP** activity that shows Hello World. Explore, Build, and
 1. On Windows, follow the [Windows setup notes](apps/windows/README.md).
 2. Open [the WinUI 3 solution](apps/windows/caocap/caocap.sln) in Visual Studio 2022.
 
-This does not build on macOS. You should see a **CAOCAP** window that shows Hello World. The floating Agent and computer use are not implemented.
+This does not build on macOS. GitHub Actions on `windows-latest` compiles the Debug|x64 shell; local run still needs Visual Studio 2022. You should see a **CAOCAP** window that shows Hello World. The floating Agent and computer use are not implemented.
 
 ### Linux
 

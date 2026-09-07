@@ -19,6 +19,14 @@ dotnet build caocap\caocap.sln -c Debug -p:Platform=x64
 
 This project is unpackaged (`WindowsPackageType` is `None`). It does not build or run on macOS.
 
+## Continuous integration
+
+GitHub Actions workflow [`.github/workflows/windows.yml`](../../.github/workflows/windows.yml) builds Debug|x64 on `windows-latest` with the .NET 8 SDK, then launches the unpackaged exe and uploads the build output plus a screenshot artifact of the **CAOCAP** Hello World window. The capture step uses a small Windows.Graphics.Capture helper under [scripts/wgc-capture](scripts/wgc-capture) because GDI `BitBlt` / `PrintWindow` often record WinUI content as a blank frame.
+
+That job is compile-and-capture CI. It is not a substitute for local Visual Studio 2022, and it does not run Explore, Build, or Collaborate (those are not implemented).
+
+That job is compile-and-capture CI. It is not a substitute for local Visual Studio 2022, and it does not run Explore, Build, or Collaborate (those are not implemented).
+
 ## What you should see
 
 A single window titled **CAOCAP** that shows **Hello, world!**
