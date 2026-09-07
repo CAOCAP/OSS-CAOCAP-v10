@@ -19,7 +19,7 @@ CAOCAP is transitioning to a collaborative AI agent platform. Agent discovery, b
 | Android | Directory scaffold only |
 | Windows | Directory scaffold only |
 | Linux | Directory scaffold only |
-| Landing page | Throwaway waitlist UI prototype in [`websites/landing/`](websites/landing/); not a shipped site |
+| Landing page | Hosted waitlist in [`websites/landing/`](websites/landing/); emails stored in Firestore via `joinWaitlist`. Vite prototype, not the planned web app |
 | Web application | Directory scaffold only |
 
 ## Repository structure
@@ -34,7 +34,7 @@ CAOCAP is transitioning to a collaborative AI agent platform. Agent discovery, b
 │   ├── linux/               # Planned Linux client
 │   └── web/                 # Planned web client
 ├── websites/
-│   └── landing/             # Throwaway waitlist UI prototype; not a shipped site
+│   └── landing/             # Hosted waitlist (Vite prototype on Firebase Hosting)
 ├── assets/
 │   └── brand/               # Imported artwork and icon variants
 ├── docs/
@@ -66,9 +66,9 @@ The runnable applications currently require macOS and an Xcode version compatibl
 
 You should see the CAOCAP window, a cube status item in the menu bar, and CoCaptain on the desktop. Tap CoCaptain to open its compact chat UI. The floating Agent has local play (faces, bob, peek, spin) that is not an AI connection. Prompts stay in memory for the current session; agent responses and computer use are not connected. The hub window still shows placeholder Hello World content.
 
-### Landing page prototype
+### Landing waitlist
 
-A local waitlist UI prototype lives in [`websites/landing/`](websites/landing/). Run `npm install && npm run dev` there. It is not a production site and does not collect email.
+The waitlist page lives in [`websites/landing/`](websites/landing/). Run `npm install && npm run dev` there. Submitting an address calls `joinWaitlist` and stores it in Firestore. Deploy with `npm run build` in that folder, then `firebase deploy --only functions,hosting` from [`firebase/`](firebase/).
 
 ## Technology
 
@@ -77,7 +77,7 @@ Technology currently present in the repository:
 - Swift
 - SwiftUI
 - Xcode projects for iOS and macOS
-- A throwaway Vite + React + Tailwind waitlist prototype under `websites/landing/` (not a production stack decision)
+- A Vite + React + Tailwind waitlist prototype under `websites/landing/`, hosted on Firebase (not a production stack decision for the web app)
 
 Technology choices for the other clients and shared services have not been made.
 

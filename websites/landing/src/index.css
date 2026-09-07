@@ -23,3 +23,28 @@ body {
   background: var(--color-page);
   -webkit-font-smoothing: antialiased;
 }
+
+.float-card {
+  animation: float-card 5.5s ease-in-out infinite;
+}
+
+.float-card-delayed {
+  animation-delay: -2.2s;
+}
+
+@keyframes float-card {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .float-card,
+  .float-card-delayed {
+    animation: none;
+  }
+}

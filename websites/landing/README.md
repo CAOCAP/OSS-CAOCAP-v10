@@ -1,10 +1,10 @@
 # Landing waitlist prototype
 
-Throwaway UI. Direction: a light product landing — two-tone type, the app in the room, waitlist as the CTA.
+Vite + React + Tailwind waitlist page. The visual stack is a prototype, not a production web-app decision. Emails are stored in Firestore through the `joinWaitlist` Cloud Function.
 
-Email submit is in-memory only. This is not a production site.
+There is no send-mail yet. Export addresses from the Firebase console when you write people.
 
-## Run
+## Run locally
 
 ```sh
 cd websites/landing
@@ -12,4 +12,17 @@ npm install
 npm run dev
 ```
 
-Open the local URL Vite prints (usually `http://localhost:5173`).
+Open the local URL Vite prints (usually `http://localhost:5173`). The dev server proxies `POST /joinWaitlist` to the deployed function.
+
+Hero images in `public/app/` are simulator captures of Home, Workspace, and CoCaptain chat.
+
+## Deploy
+
+```sh
+cd websites/landing
+npm run build
+cd ../../firebase
+firebase deploy --only functions,hosting --project caocap-ficruty
+```
+
+Hosting copies `websites/landing/dist` into `firebase/hosting-public/` during deploy. That copy is gitignored.

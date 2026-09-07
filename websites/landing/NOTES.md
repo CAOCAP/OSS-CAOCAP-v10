@@ -2,25 +2,26 @@
 
 **Question:** What should the CAOCAP waitlist page look like?
 
-**Verdict (2026-09-07):** A light product landing with the app in the middle is the direction. Keep it.
-
-## What won
-
-A quiet marketing page whose center is the **product in the room** — not a mascot poster and not a serif manifesto.
+**Verdict:** A light product landing with the **phone in the center** and real app captures around it. The bezel shows Home (CoCaptain and CoStar). Chat and Workspace screenshots float beside it.
 
 Keep:
 
-- Pale field, floating pill nav, two-tone sans headline, pill waitlist CTA
-- iPhone Home mock (agent grid) with CoCaptain / CoStar as **app avatars**, plus floating chat / canvas / together cards
-- Explore / Build / Collaborate as product cards, not chapters of an essay
-- Characters only as they appear in the apps
+- Pale field, floating pill nav, two-tone sans headline, one pill waitlist
+- Simulator screenshots in `public/app/` — not a CSS mock of the UI
+- CoCaptain / CoStar as they appear in the apps
+- Explore / Build / Collaborate cards with crops of those captures
 
 Do not return to:
 
-- Chibi hero art, comic borders, offset shadows, rounded “kids’ app” type
-- Dark editorial splash with no product in it
-- Three layout-switcher variants of a generic waitlist template
+- Chibi hero art or comic chrome
+- A drawn canvas / fake nodes as the hero
+- Dark editorial splash with no product
+- Three layout-switcher variants
 
-## Still throwaway
+The Workspace capture is an empty dotted canvas; that is the current product, not a stand-in mindmap.
 
-Email is in-memory only. Vite + React + Tailwind is a prototype vehicle, not a production stack decision. When this is rewritten as the real site, keep the direction and delete leftover prototype scaffolding.
+## Waitlist
+
+The pill form posts to `/joinWaitlist`. The Cloud Function writes `waitlist/{email}` in Firestore (normalized address, first-seen timestamp). Duplicates and the honeypot field return the same success payload. Nothing is emailed yet.
+
+Vite + React + Tailwind is still a prototype vehicle, not a production stack decision for the web app.

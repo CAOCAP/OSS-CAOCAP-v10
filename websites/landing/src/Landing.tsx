@@ -1,4 +1,10 @@
-import { ProductStage } from './ProductStage.tsx'
+import type { ReactNode } from 'react'
+import {
+  MiniCanvas,
+  MiniCollab,
+  MiniHome,
+  ProductStage,
+} from './ProductStage.tsx'
 import { WaitlistForm } from './WaitlistForm.tsx'
 import { Wordmark } from './Wordmark.tsx'
 
@@ -18,70 +24,60 @@ export function Landing() {
       </header>
 
       <section className="mx-auto max-w-3xl px-6 pb-6 pt-20 text-center">
-        <p className="text-sm text-muted">Welcome to CAOCAP</p>
-        <h1 className="mt-4 text-4xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
-          Explore agents,{' '}
-          <span className="text-cyan">and build them together.</span>
+        <h1 className="text-4xl font-semibold leading-[1.15] tracking-tight sm:text-5xl">
+          Explore and build agents.{' '}
+          <span className="text-cyan">Collaborate before you publish.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-md text-[15px] leading-relaxed text-muted">
-          Discover useful agents, shape how they think, and publish a version
-          you have actually tested.
+          Discover useful agents, shape how they think on a canvas, and release
+          a version you have actually tested.
         </p>
-        <div className="mx-auto mt-8 flex justify-center">
-          <WaitlistForm id="waitlist-hero" />
+        <div id="waitlist" className="mx-auto mt-8 flex scroll-mt-28 justify-center">
+          <WaitlistForm id="waitlist-email" />
         </div>
       </section>
 
       <ProductStage />
 
-      <section className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-6 pb-16 text-center sm:flex-row sm:justify-center sm:gap-16">
+      <section className="mx-auto flex max-w-3xl flex-col items-center gap-3 px-6 pb-16 text-center sm:flex-row sm:justify-center sm:gap-16">
         <p className="text-sm text-muted">iOS and macOS · coming soon</p>
         <p className="text-sm text-muted">Waitlist only. Nothing to download yet.</p>
       </section>
 
       <section className="px-6 pb-24">
         <h2 className="mx-auto max-w-xl text-center text-3xl font-semibold tracking-tight">
-          Everything about your agents{' '}
-          <span className="text-cyan">in one place</span>
+          A library, a canvas, and a shared review.
         </h2>
         <div className="mx-auto mt-12 grid max-w-5xl gap-4 md:grid-cols-3">
           <FeatureCard
             kicker="Explore"
             title="Find an agent that fits the work."
             body="See what it does, where it fails, and try it before you depend on it."
-          />
+          >
+            <MiniHome />
+          </FeatureCard>
           <FeatureCard
             kicker="Build"
             title="Map the knowledge. Draw the logic."
             body="Mindmaps hold context. Flowcharts hold conditions. Test before anyone else has to trust it."
-          />
+          >
+            <MiniCanvas />
+          </FeatureCard>
           <FeatureCard
             kicker="Collaborate"
             title="Ship the version you tested together."
             body="Contribute, review, and publish with a clear record of who did what."
-          />
+          >
+            <MiniCollab />
+          </FeatureCard>
         </div>
       </section>
 
-      <section
-        id="waitlist"
-        className="border-t border-navy/5 bg-white px-6 py-20"
-      >
-        <div className="mx-auto max-w-lg text-center">
-          <h2 className="text-3xl font-semibold tracking-tight">
-            Be first when the apps open.
-          </h2>
-          <p className="mt-3 text-sm leading-relaxed text-muted">
-            Leave an address. We’ll write when iOS and macOS are ready to try.
-          </p>
-          <div className="mx-auto mt-8 flex justify-center">
-            <WaitlistForm id="waitlist-footer" compact />
-          </div>
-        </div>
-      </section>
-
-      <footer className="px-6 py-10 text-center text-xs text-muted">
-        CAOCAP · Explore. Build. Collaborate.
+      <footer className="border-t border-navy/5 px-6 py-10 text-center">
+        <p className="text-sm text-muted">
+          We’ll write when iOS and macOS are ready to try.
+        </p>
+        <p className="mt-3 text-xs text-muted/80">CAOCAP</p>
       </footer>
     </div>
   )
@@ -91,13 +87,16 @@ function FeatureCard({
   kicker,
   title,
   body,
+  children,
 }: {
   kicker: string
   title: string
   body: string
+  children: ReactNode
 }) {
   return (
     <article className="rounded-[1.6rem] bg-white p-6 shadow-[0_16px_40px_rgba(26,36,51,0.06)]">
+      <div className="mb-4">{children}</div>
       <p className="text-xs font-medium uppercase tracking-[0.16em] text-cyan">
         {kicker}
       </p>

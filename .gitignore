@@ -29,3 +29,4 @@ playground.xcworkspace
 GoogleService-Info.plist
 firebase/functions/node_modules/
 firebase/functions/lib/
+firebase/hosting-public/
