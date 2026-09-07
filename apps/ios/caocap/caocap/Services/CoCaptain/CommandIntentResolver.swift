@@ -334,6 +334,10 @@ public struct CommandIntentResolver {
                 "افتح يوتيوب على الماك",
                 "افتح يوتيوب على جهاز الماك"
             ]
+        case .openYouTubeVideoOnMac:
+            return []
+        case .openURLOnMac:
+            return []
         }
     }
 

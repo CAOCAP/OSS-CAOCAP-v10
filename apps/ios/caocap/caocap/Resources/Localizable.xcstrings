@@ -508,6 +508,28 @@
         }
       }
     },
+    "Asking your Mac to open this page…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ طلب فتح هذه الصفحة على جهاز الماك…"
+          }
+        }
+      }
+    },
+    "Asking your Mac to open this video…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ طلب فتح هذا الفيديو على جهاز الماك…"
+          }
+        }
+      }
+    },
     "Asking your Mac to open YouTube…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5692,6 +5714,28 @@
         }
       }
     },
+    "Open a specific YouTube watch URL on the signed-in Mac. Only https://www.youtube.com/watch?v=VIDEO_ID. Do not use this for the homepage or for finding a tutorial. Do not search on the phone." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فتح رابط مشاهدة يوتيوب محدد على الماك المسجّل. فقط https://www.youtube.com/watch?v=VIDEO_ID. لا تستخدمه للصفحة الرئيسية أو لإيجاد درس. لا تبحث على الهاتف."
+          }
+        }
+      }
+    },
+    "Open an allowlisted https documentation URL on the signed-in Mac. Hosts: developer.apple.com, docs.swift.org, swift.org. Use this to find a SwiftUI tutorial. Do not use YouTube. Do not open other hosts. Do not search on the phone." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فتح رابط توثيق https مسموح على الماك المسجّل. المضيفون: developer.apple.com و docs.swift.org و swift.org. استخدم هذا لإيجاد درس SwiftUI. لا تستخدم يوتيوب. لا تفتح مضيفين آخرين. لا تبحث على الهاتف."
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8139,6 +8183,28 @@
         }
       }
     },
+    "That link cannot be opened on your Mac" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يمكن فتح هذا الرابط على جهاز الماك"
+          }
+        }
+      }
+    },
+    "That YouTube link cannot be opened on your Mac" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يمكن فتح رابط يوتيوب هذا على جهاز الماك"
+          }
+        }
+      }
+    },
     "That text appears in more than one place and I don't want to change the wrong one. Try describing the exact spot you mean." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8957,6 +9023,50 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "تم فتح يوتيوب على جهاز الماك"
+          }
+        }
+      }
+    },
+    "This page opened on your Mac" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم فتح هذه الصفحة على جهاز الماك"
+          }
+        }
+      }
+    },
+    "This video opened on your Mac" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم فتح هذا الفيديو على جهاز الماك"
+          }
+        }
+      }
+    },
+    "Your Mac could not open this page" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذر على جهاز الماك فتح هذه الصفحة"
+          }
+        }
+      }
+    },
+    "Your Mac could not open this video" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذر على جهاز الماك فتح هذا الفيديو"
           }
         }
       }

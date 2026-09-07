@@ -840,7 +840,7 @@ public final class CoCaptainViewModel {
     /// Handles simple app commands locally so navigation does not need a model
     /// round trip. Mutating commands still become review items.
     ///
-    /// In Ask/Plan modes, mutating shortcuts and the Open YouTube on Mac command
+    /// In Ask/Plan modes, mutating shortcuts and Open YouTube on Mac commands
     /// are skipped so those messages go to the model as chat.
     private func handleDirectCommand(
         _ text: String,
@@ -856,7 +856,7 @@ public final class CoCaptainViewModel {
             return false
         }
 
-        if mode.isProseOnly, definition.isMutating || actionID == .openYouTubeOnMac {
+        if mode.isProseOnly, definition.isMutating || actionID == .openYouTubeOnMac || actionID == .openYouTubeVideoOnMac || actionID == .openURLOnMac {
             return false
         }
 

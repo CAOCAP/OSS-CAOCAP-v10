@@ -9,7 +9,6 @@ import OSLog
 @Observable
 @MainActor
 final class RemoteCommandRelay {
-    private static let youtubeURL = "https://www.youtube.com"
     private static let optInKey = "caocap.enableIPhoneRequests"
     private static let deviceIdKey = "caocap.deviceId"
 
@@ -109,7 +108,7 @@ final class RemoteCommandRelay {
         let data = document.data()
         let type = data["type"] as? String
         let urlString = data["url"] as? String
-        guard type == "openYouTube", urlString == Self.youtubeURL else {
+        guard let url = allowedOpenURL(type: type, urlString: urlString) else {
             claimingIDs.remove(id)
             logger.warning("Ignored command \(id, privacy: .public) with disallowed type or URL.")
             return
@@ -117,7 +116,8 @@ final class RemoteCommandRelay {
 
         do {
             try await claim(document)
-            let opened = openYouTube()
+            logger.info("Opening allowlisted URL \(url.absoluteString, privacy: .public)")
+            let opened = NSWorkspace.shared.open(url)
             if opened {
                 try await complete(document.reference, status: "opened", timestampField: "openedAt")
             } else {
@@ -128,6 +128,21 @@ final class RemoteCommandRelay {
             logger.error("Command \(id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             claimingIDs.remove(id)
         }
+    }
+
+    private func allowedOpenURL(type: String?, urlString: String?) -> URL? {
+        if type == "openYouTube", urlString == YouTubeWatchURL.homepage {
+            return URL(string: YouTubeWatchURL.homepage)
+        }
+        if type == "openYouTubeVideo",
+           let canonical = YouTubeWatchURL.canonicalWatchURL(from: urlString) {
+            return URL(string: canonical)
+        }
+        if type == "openURL",
+           let canonical = AllowlistedOpenURL.canonicalDocumentationURL(from: urlString) {
+            return URL(string: canonical)
+        }
+        return nil
     }
 
     private func claim(_ document: QueryDocumentSnapshot) async throws {
@@ -165,10 +180,5 @@ final class RemoteCommandRelay {
             "status": status,
             timestampField: FieldValue.serverTimestamp()
         ])
-    }
-
-    private func openYouTube() -> Bool {
-        guard let url = URL(string: Self.youtubeURL) else { return false }
-        return NSWorkspace.shared.open(url)
     }
 }

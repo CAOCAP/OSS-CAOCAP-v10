@@ -702,7 +702,21 @@ final class AppSessionCoordinator {
             Task { @MainActor [weak self] in
                 _ = await self?.remoteMacCommands?.requestOpenYouTubeOnMac()
             }
-            return LocalizationManager.shared.localizedString("Asking your Mac to open YouTube…")
+            return RemoteCommandChatCopy.askingMessage(for: .homepage)
+        }
+        actionDispatcher.register(.openYouTubeVideoOnMac) { [weak self] args -> String? in
+            let url = args?["url"] ?? ""
+            Task { @MainActor [weak self] in
+                _ = await self?.remoteMacCommands?.requestOpenYouTubeVideoOnMac(url: url)
+            }
+            return RemoteCommandChatCopy.askingMessage(for: .video)
+        }
+        actionDispatcher.register(.openURLOnMac) { [weak self] args -> String? in
+            let url = args?["url"] ?? ""
+            Task { @MainActor [weak self] in
+                _ = await self?.remoteMacCommands?.requestOpenURLOnMac(url: url)
+            }
+            return RemoteCommandChatCopy.askingMessage(for: .page)
         }
     }
 

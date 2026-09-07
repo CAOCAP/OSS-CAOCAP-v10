@@ -1,6 +1,6 @@
 # CoCaptain Feature
 
-CoCaptain is the in-app assistant. It talks about the current canvas, keeps a sign-in-aware conversation, and can request canvas actions such as creating or moving a card. It does not propose or apply HTML, SRS, or Mini-App source edits. In Agent mode it can also send the allowlisted Open YouTube on Mac command. Ask / Plan stay prose-only.
+CoCaptain is the in-app assistant. It talks about the current canvas, keeps a sign-in-aware conversation, and can request canvas actions such as creating or moving a card. It does not propose or apply HTML, SRS, or Mini-App source edits. In Agent mode it can also send allowlisted Open YouTube on Mac commands (homepage) and open an allowlisted documentation URL on Mac. Ask / Plan stay prose-only.
 
 CoCaptain and CoStar are separate default agents on Home. Each Workspace selects its own canvas-backed conversation archive, chat title, avatar, and session draft. The FAB is available inside that Workspace. Ask / Plan modes stay prose-only.
 
@@ -148,6 +148,7 @@ Review cards with a target node include **View on Canvas**, which flies the work
 - Open node-scoped CoCaptain and confirm it uses the same Agent/Ask/Plan selection.
 - Send a direct navigation command and confirm safe actions execute or review appears as expected.
 - In Agent mode, say “open YouTube on my Mac” with a signed-in Mac that has requests enabled; confirm chat shows the receipt and YouTube opens. Ask mode with the same phrase must stay prose-only.
+- In Agent mode, say “Find a beginner SwiftUI tutorial and open it on my Mac”; confirm Mac opens an allowlisted documentation page (developer.apple.com / Swift docs), not YouTube, and chat shows the receipt. Ask mode with the same phrase must stay prose-only.
 - On iPhone and iPad, confirm CoCaptain opens as a detented sheet (large from FAB tap / ⌘J, medium from the FAB Chat bubble).
 
 ## Test Targets
@@ -160,7 +161,7 @@ Useful test coverage for this feature:
 - function-call adapter mapping for safe actions and pending actions.
 - HTML / SRS `propose_node_edit` and `node_edit` payloads are dropped.
 - Review Lifecycle staging and transitions for app actions, including unavailable actions, bulk decisions, and node-only persistence.
-- direct command handling for autonomous vs review-required actions; Ask skips mutating short-circuits and Open YouTube on Mac.
+- direct command handling for autonomous vs review-required actions; Ask skips mutating short-circuits, Open YouTube on Mac, and open documentation URL on Mac.
 - Agent pure-prose turns finish without forced edit retries.
 - Ask never stages a review bundle from model output.
 - turn-plan policy mapping for Agent, Ask, and onboarding purposes.

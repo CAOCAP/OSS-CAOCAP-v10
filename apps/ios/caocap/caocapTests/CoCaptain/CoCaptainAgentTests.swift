@@ -2001,6 +2001,12 @@ struct CoCaptainAgentTests {
                 availableActions: actions
             ) == nil
         )
+        #expect(
+            resolver.resolve(
+                "find a beginner SwiftUI tutorial and open it on my Mac",
+                availableActions: actions
+            ) == nil
+        )
         #expect(resolver.resolve("do not open youtube on my mac", availableActions: actions) == nil)
     }
 
@@ -2080,6 +2086,187 @@ struct CoCaptainAgentTests {
         #expect(runner.requestCount == 1)
         #expect(dispatcher.executedActionIDs.isEmpty)
         #expect(result.executionSummary?.summary == "YouTube opened on your Mac")
+    }
+
+    @MainActor
+    @Test func agentModeRunsOpenYouTubeVideoFromSafeAction() async throws {
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let llm = TestLLMClient(
+            response: "Opening a beginner SwiftUI tutorial on your Mac.",
+            functionCalls: [[
+                CoCaptainAgentFunctionCall(
+                    name: CoCaptainFunctionCallAgentAdapter.requestAppActionName,
+                    arguments: [
+                        "actionId": "open_youtube_video_on_mac",
+                        "executionMode": "safe",
+                        "url": "https://youtu.be/dQw4w9WgXcQ"
+                    ]
+                )
+            ]]
+        )
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let result = try await coordinator.run(
+            userMessage: "Find a beginner SwiftUI tutorial on YouTube and open it on my Mac",
+            store: makeStore(),
+            dispatcher: dispatcher,
+            remoteMacCommands: runner
+        ) { _ in }
+
+        #expect(runner.requestCount == 0)
+        #expect(runner.videoRequestCount == 1)
+        #expect(runner.lastVideoURL == "https://youtu.be/dQw4w9WgXcQ")
+        #expect(dispatcher.executedActionIDs.isEmpty)
+        #expect(result.executionSummary?.summary == "This video opened on your Mac")
+    }
+
+    @MainActor
+    @Test func agentModeRunsOpenURLFromSafeAction() async throws {
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let llm = TestLLMClient(
+            response: "Opening Apple’s SwiftUI tutorial on your Mac.",
+            functionCalls: [[
+                CoCaptainAgentFunctionCall(
+                    name: CoCaptainFunctionCallAgentAdapter.requestAppActionName,
+                    arguments: [
+                        "actionId": "open_url_on_mac",
+                        "executionMode": "safe",
+                        "url": "https://developer.apple.com/tutorials/swiftui"
+                    ]
+                )
+            ]]
+        )
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let result = try await coordinator.run(
+            userMessage: "Find a beginner SwiftUI tutorial and open it on my Mac",
+            store: makeStore(),
+            dispatcher: dispatcher,
+            remoteMacCommands: runner
+        ) { _ in }
+
+        #expect(runner.requestCount == 0)
+        #expect(runner.videoRequestCount == 0)
+        #expect(runner.pageRequestCount == 1)
+        #expect(runner.lastPageURL == "https://developer.apple.com/tutorials/swiftui")
+        #expect(dispatcher.executedActionIDs.isEmpty)
+        #expect(result.executionSummary?.summary == "This page opened on your Mac")
+    }
+
+    @MainActor
+    @Test func agentModeRejectsDisallowedOpenURL() async throws {
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let llm = TestLLMClient(
+            response: "Opening that link on your Mac.",
+            functionCalls: [[
+                CoCaptainAgentFunctionCall(
+                    name: CoCaptainFunctionCallAgentAdapter.requestAppActionName,
+                    arguments: [
+                        "actionId": "open_url_on_mac",
+                        "executionMode": "safe",
+                        "url": "https://example.com/tutorials/swiftui"
+                    ]
+                )
+            ]]
+        )
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let result = try await coordinator.run(
+            userMessage: "open this tutorial on my Mac",
+            store: makeStore(),
+            dispatcher: dispatcher,
+            remoteMacCommands: runner
+        ) { _ in }
+
+        #expect(runner.pageRequestCount == 1)
+        #expect(runner.videoRequestCount == 0)
+        #expect(result.executionSummary?.summary == "That link cannot be opened on your Mac")
+    }
+
+    @MainActor
+    @Test func agentModeRejectsInvalidYouTubeVideoURL() async throws {
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let llm = TestLLMClient(
+            response: "Opening that link on your Mac.",
+            functionCalls: [[
+                CoCaptainAgentFunctionCall(
+                    name: CoCaptainFunctionCallAgentAdapter.requestAppActionName,
+                    arguments: [
+                        "actionId": "open_youtube_video_on_mac",
+                        "executionMode": "safe",
+                        "url": "https://example.com/watch?v=dQw4w9WgXcQ"
+                    ]
+                )
+            ]]
+        )
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let result = try await coordinator.run(
+            userMessage: "open this video on my Mac",
+            store: makeStore(),
+            dispatcher: dispatcher,
+            remoteMacCommands: runner
+        ) { _ in }
+
+        #expect(runner.videoRequestCount == 1)
+        #expect(runner.requestCount == 0)
+        #expect(result.executionSummary?.summary == "That YouTube link cannot be opened on your Mac")
+    }
+
+    @MainActor
+    @Test func agentModeRejectsMissingYouTubeVideoURL() async throws {
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let llm = TestLLMClient(
+            response: "Opening that video on your Mac.",
+            functionCalls: [[
+                CoCaptainAgentFunctionCall(
+                    name: CoCaptainFunctionCallAgentAdapter.requestAppActionName,
+                    arguments: [
+                        "actionId": "open_youtube_video_on_mac",
+                        "executionMode": "safe"
+                    ]
+                )
+            ]]
+        )
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let result = try await coordinator.run(
+            userMessage: "open a SwiftUI tutorial on my Mac",
+            store: makeStore(),
+            dispatcher: dispatcher,
+            remoteMacCommands: runner
+        ) { _ in }
+
+        #expect(runner.videoRequestCount == 1)
+        #expect(runner.lastVideoURL == "")
+        #expect(runner.requestCount == 0)
+        #expect(result.executionSummary?.summary == "That YouTube link cannot be opened on your Mac")
+    }
+
+    @MainActor
+    @Test func askModeDoesNotExecuteYouTubeTutorialAction() async throws {
+        let llm = TestLLMClient(response: "I can talk about finding a tutorial without sending it to your Mac.")
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let vm = CoCaptainViewModel(agentCoordinator: coordinator)
+        vm.store = makeStore()
+        vm.actionDispatcher = dispatcher
+        vm.remoteMacCommands = runner
+        vm.chatMode = .ask
+
+        vm.sendMessage("Find a beginner SwiftUI tutorial and open it on my Mac")
+
+        for _ in 0..<20 where vm.isThinking {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(runner.requestCount == 0)
+        #expect(runner.videoRequestCount == 0)
+        #expect(runner.pageRequestCount == 0)
+        #expect(dispatcher.executedActionIDs.isEmpty)
+        #expect(llm.receivedMessages == ["Find a beginner SwiftUI tutorial and open it on my Mac"])
+        #expect(llm.receivedExpectsStructuredResponse == [false])
     }
 
     @MainActor
@@ -2455,6 +2642,24 @@ struct CoCaptainAgentTests {
         #expect(xmlPrompt.contains("XML schema for `cocaptain_actions`"))
         #expect(!xmlPrompt.contains("<learning_note"))
         #expect(xmlPrompt.contains("propose_node_edit") == false)
+    }
+
+    @MainActor
+    @Test func agentPromptSendsTutorialFindsToDocumentationHosts() {
+        let prompt = LLMService.shared.buildPrompt(
+            userMessage: "Find a beginner SwiftUI tutorial and open it on my Mac",
+            context: nil,
+            expectsStructuredResponse: true,
+            availableActions: TestActionDispatcher().availableActions,
+            scope: .project,
+            purpose: .standard,
+            chatMode: .agent
+        )
+        #expect(prompt.contains("open_url_on_mac"))
+        #expect(prompt.contains("developer.apple.com"))
+        #expect(prompt.contains("Do not use YouTube"))
+        #expect(!prompt.contains("https://www.youtube.com/watch?v=HyQgpxX__-A"))
+        #expect(!prompt.contains("Never invent a video id"))
     }
 
     @MainActor
@@ -2848,6 +3053,22 @@ private final class TestActionDispatcher: AppActionPerforming {
             category: .assistant,
             isMutating: false,
             allowsAutonomousExecution: true
+        ),
+        AppActionDefinition(
+            id: .openYouTubeVideoOnMac,
+            title: "Open a specific YouTube watch URL on the signed-in Mac",
+            icon: "play.rectangle.fill",
+            category: .assistant,
+            isMutating: false,
+            allowsAutonomousExecution: true
+        ),
+        AppActionDefinition(
+            id: .openURLOnMac,
+            title: "Open an allowlisted documentation URL on the signed-in Mac",
+            icon: "safari",
+            category: .assistant,
+            isMutating: false,
+            allowsAutonomousExecution: true
         )
     ]
 
@@ -2877,10 +3098,34 @@ private final class TestActionDispatcher: AppActionPerforming {
 @MainActor
 private final class TestRemoteMacCommandRunner: RemoteMacCommandRunning {
     var requestCount = 0
+    var videoRequestCount = 0
+    var pageRequestCount = 0
+    var lastVideoURL: String?
+    var lastPageURL: String?
     var result = "YouTube opened on your Mac"
+    var videoResult = "This video opened on your Mac"
+    var pageResult = "This page opened on your Mac"
 
     func requestOpenYouTubeOnMac() async -> String {
         requestCount += 1
         return result
+    }
+
+    func requestOpenYouTubeVideoOnMac(url: String) async -> String {
+        videoRequestCount += 1
+        lastVideoURL = url
+        if RemoteCommandMapping.canonicalWatchURL(from: url) == nil {
+            return RemoteCommandChatCopy.invalidURLMessage(for: .video)
+        }
+        return videoResult
+    }
+
+    func requestOpenURLOnMac(url: String) async -> String {
+        pageRequestCount += 1
+        lastPageURL = url
+        if RemoteCommandMapping.canonicalDocumentationURL(from: url) == nil {
+            return RemoteCommandChatCopy.invalidURLMessage(for: .page)
+        }
+        return pageResult
     }
 }

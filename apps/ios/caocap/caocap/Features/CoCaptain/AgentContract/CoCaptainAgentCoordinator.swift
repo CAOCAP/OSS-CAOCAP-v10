@@ -561,6 +561,7 @@ public final class CoCaptainAgentCoordinator {
         3. For app navigation or canvas actions such as creating or moving a node, call `request_app_action`.
         4. Put mutating or non-autonomous app actions in `request_app_action` with `executionMode=pending`.
         5. Use `executionMode=safe` only for available, non-mutating, autonomous app actions.
+        6. To open a found SwiftUI tutorial on Mac, call `open_url_on_mac` with `url` set to a real https documentation page on developer.apple.com, docs.swift.org, or swift.org. Do not invent a host. Never use `open_youtube_on_mac` or `open_youtube_video_on_mac` for a find or search request.
         
         Original user request:
         \(userMessage)
@@ -628,6 +629,22 @@ public final class CoCaptainAgentCoordinator {
                 }
                 continue
             }
+            if id == .openYouTubeVideoOnMac {
+                if let remoteMacCommands {
+                    let url = action.args?["url"] ?? ""
+                    let message = await remoteMacCommands.requestOpenYouTubeVideoOnMac(url: url)
+                    executedSummaries.append(message)
+                }
+                continue
+            }
+            if id == .openURLOnMac {
+                if let remoteMacCommands {
+                    let url = action.args?["url"] ?? ""
+                    let message = await remoteMacCommands.requestOpenURLOnMac(url: url)
+                    executedSummaries.append(message)
+                }
+                continue
+            }
             let result = dispatcher.perform(id, source: .agentAutomatic, arguments: action.args)
             if result.executed {
                 executedSummaries.append(result.title)
@@ -636,7 +653,8 @@ public final class CoCaptainAgentCoordinator {
 
         guard !executedSummaries.isEmpty else { return nil }
         if actions.count == 1,
-           actions.first.flatMap({ AppActionID(rawValue: $0.actionID) }) == .openYouTubeOnMac {
+           let onlyID = actions.first.flatMap({ AppActionID(rawValue: $0.actionID) }),
+           onlyID == .openYouTubeOnMac || onlyID == .openYouTubeVideoOnMac || onlyID == .openURLOnMac {
             return ExecutionStatusItem(summary: executedSummaries[0])
         }
         return ExecutionStatusItem(

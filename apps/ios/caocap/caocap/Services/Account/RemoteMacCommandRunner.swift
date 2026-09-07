@@ -4,9 +4,11 @@ import Foundation
 @MainActor
 public protocol RemoteMacCommandRunning: AnyObject {
     func requestOpenYouTubeOnMac() async -> String
+    func requestOpenYouTubeVideoOnMac(url: String) async -> String
+    func requestOpenURLOnMac(url: String) async -> String
 }
 
-/// Runs the allowlisted Open YouTube command and returns localized chat copy.
+/// Runs allowlisted Mac open commands and returns localized chat copy.
 @MainActor
 final class RemoteMacCommandRunner: RemoteMacCommandRunning {
     private let client: RemoteCommandClient
@@ -24,6 +26,33 @@ final class RemoteMacCommandRunner: RemoteMacCommandRunning {
     }
 
     func requestOpenYouTubeOnMac() async -> String {
+        await requestOpen(subject: .homepage) {
+            await client.openYouTubeOnMac()
+        }
+    }
+
+    func requestOpenYouTubeVideoOnMac(url: String) async -> String {
+        guard RemoteCommandMapping.canonicalWatchURL(from: url) != nil else {
+            return RemoteCommandChatCopy.invalidURLMessage(for: .video)
+        }
+        return await requestOpen(subject: .video) {
+            await client.openYouTubeVideoOnMac(url: url)
+        }
+    }
+
+    func requestOpenURLOnMac(url: String) async -> String {
+        guard RemoteCommandMapping.canonicalDocumentationURL(from: url) != nil else {
+            return RemoteCommandChatCopy.invalidURLMessage(for: .page)
+        }
+        return await requestOpen(subject: .page) {
+            await client.openURLOnMac(url: url)
+        }
+    }
+
+    private func requestOpen(
+        subject: RemoteCommandChatCopy.Subject,
+        send: () async -> Void
+    ) async -> String {
         guard authManager.isAuthenticated else {
             return LocalizationManager.shared.localizedString("Sign in to send this to your Mac")
         }
@@ -32,8 +61,8 @@ final class RemoteMacCommandRunner: RemoteMacCommandRunning {
                 "No Mac is signed in with this account"
             )
         }
-        await client.openYouTubeOnMac()
+        await send()
         let settled = await client.waitUntilSettled()
-        return RemoteCommandChatCopy.message(for: settled)
+        return RemoteCommandChatCopy.message(for: settled, subject: subject)
     }
 }

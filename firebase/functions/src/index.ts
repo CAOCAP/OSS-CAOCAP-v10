@@ -5,6 +5,100 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 initializeApp();
 
 const youtubeURL = "https://www.youtube.com";
+const youtubeVideoID = /^[A-Za-z0-9_-]{11}$/;
+
+/** Returns `https://www.youtube.com/watch?v=VIDEO_ID` when `raw` is an allowlisted watch URL. */
+export function canonicalWatchURL(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== "https:") {
+    return null;
+  }
+
+  const host = url.hostname.toLowerCase();
+  let videoID: string | null = null;
+  if (host === "youtu.be" || host === "www.youtu.be") {
+    const parts = url.pathname.split("/").filter(Boolean);
+    if (parts.length !== 1) {
+      return null;
+    }
+    videoID = parts[0];
+  } else if (host === "youtube.com" || host === "www.youtube.com") {
+    const path = url.pathname.replace(/^\/+|\/+$/g, "");
+    if (path !== "watch") {
+      return null;
+    }
+    videoID = url.searchParams.get("v");
+  } else {
+    return null;
+  }
+
+  if (!videoID || !youtubeVideoID.test(videoID)) {
+    return null;
+  }
+
+    return `https://www.youtube.com/watch?v=${videoID}`;
+}
+
+const documentationHosts = new Set([
+  "developer.apple.com",
+  "www.developer.apple.com",
+  "docs.swift.org",
+  "swift.org",
+  "www.swift.org",
+]);
+
+/** Returns a canonical https URL when `raw` is on an allowlisted documentation host. */
+export function canonicalDocumentationURL(raw: unknown): string | null {
+  if (typeof raw !== "string") {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== "https:") {
+    return null;
+  }
+  if (url.username || url.password) {
+    return null;
+  }
+  if (url.port && url.port !== "443") {
+    return null;
+  }
+
+  const host = url.hostname.toLowerCase();
+  if (!documentationHosts.has(host)) {
+    return null;
+  }
+
+  let canonicalHost = host;
+  if (host === "www.developer.apple.com") {
+    canonicalHost = "developer.apple.com";
+  } else if (host === "www.swift.org") {
+    canonicalHost = "swift.org";
+  }
+
+  const canonical = new URL(`https://${canonicalHost}`);
+  canonical.pathname = url.pathname || "/";
+  canonical.search = url.search;
+  return canonical.toString();
+}
 
 const waitlistEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -22,28 +116,92 @@ export function normalizeWaitlistEmail(raw: unknown): string | null {
   return email;
 }
 
+function requireLinkedAccount(request: { auth?: { uid: string; token: { firebase?: { sign_in_provider?: string } } } }): string {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+
+  const provider = request.auth.token.firebase?.sign_in_provider;
+  if (provider === "anonymous") {
+    throw new HttpsError(
+      "permission-denied",
+      "Anonymous sessions cannot create commands."
+    );
+  }
+
+  return request.auth.uid;
+}
+
 export const createOpenYouTube = onCall(
   { region: "us-central1" },
   async (request) => {
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "Sign in required.");
-    }
-
-    const provider = request.auth.token.firebase?.sign_in_provider;
-    if (provider === "anonymous") {
-      throw new HttpsError(
-        "permission-denied",
-        "Anonymous sessions cannot create commands."
-      );
-    }
+    const uid = requireLinkedAccount(request);
 
     const ref = await getFirestore()
       .collection("users")
-      .doc(request.auth.uid)
+      .doc(uid)
       .collection("commands")
       .add({
         type: "openYouTube",
         url: youtubeURL,
+        status: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+    return { commandId: ref.id };
+  }
+);
+
+export const createOpenYouTubeVideo = onCall(
+  { region: "us-central1" },
+  async (request) => {
+    const uid = requireLinkedAccount(request);
+    const url = canonicalWatchURL(request.data?.url);
+    if (!url) {
+      throw new HttpsError(
+        "invalid-argument",
+        "URL must be a YouTube watch link."
+      );
+    }
+
+    console.info("createOpenYouTubeVideo canonical url", url);
+
+    const ref = await getFirestore()
+      .collection("users")
+      .doc(uid)
+      .collection("commands")
+      .add({
+        type: "openYouTubeVideo",
+        url,
+        status: "pending",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+    return { commandId: ref.id };
+  }
+);
+
+export const createOpenURL = onCall(
+  { region: "us-central1" },
+  async (request) => {
+    const uid = requireLinkedAccount(request);
+    const url = canonicalDocumentationURL(request.data?.url);
+    if (!url) {
+      throw new HttpsError(
+        "invalid-argument",
+        "URL must be an allowlisted documentation link."
+      );
+    }
+
+    console.info("createOpenURL canonical url", url);
+
+    const ref = await getFirestore()
+      .collection("users")
+      .doc(uid)
+      .collection("commands")
+      .add({
+        type: "openURL",
+        url,
         status: "pending",
         createdAt: FieldValue.serverTimestamp(),
       });
