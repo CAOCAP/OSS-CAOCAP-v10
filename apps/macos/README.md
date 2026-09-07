@@ -6,7 +6,7 @@ SwiftUI app targeting macOS 26.5 or later. Requires full Xcode with a compatible
 
 1. Complete the [iOS Firebase setup](../ios/README.md): register one Apple app in Firebase with bundle ID `com.Ficruty.caocap`. Copy that `GoogleService-Info.plist` to [caocap/caocap/resources/GoogleService-Info.plist](caocap/caocap/resources/GoogleService-Info.plist). Do not register a second Firebase Apple app for Mac. If Firebase issues a new plist, replace both copies.
 2. Enable Sign in with Apple on that same App ID (already used by iOS). Do not create a second App ID for Mac.
-3. Deploy device-heartbeat rules from [firebase/](../../firebase/) with `firebase deploy --only firestore:rules` against that Firebase project. Live device listing fails until the rules are on the project.
+3. Deploy Firestore rules and the `createOpenYouTube` function from [firebase/](../../firebase/) with `firebase deploy --only functions,firestore:rules` against that Firebase project (Blaze required). Live device listing and the YouTube button fail until that deploy succeeds.
 4. Open [caocap.xcodeproj](caocap/caocap.xcodeproj) in Xcode and let it resolve Swift packages.
 5. Select the `caocap` scheme and the **My Mac** destination.
 6. Run with **Product → Run** or `Command-R`.
@@ -20,7 +20,7 @@ The Mac target is an independent Xcode project. Its `caocap/` folder uses lowerc
 | `app/` | Process entry, menu bar scenes, Firebase bootstrap, Apple sign-in |
 | `features/hub/` | CAOCAP window |
 | `features/companion/` | Floating Agent, persona, and its chat |
-| `services/` | Window focus, device heartbeat, and other non-UI helpers |
+| `services/` | Window focus, device heartbeat, remote YouTube command relay |
 | `resources/` | `Assets.xcassets` and the local `GoogleService-Info.plist` copy |
 
 ## Product surfaces
@@ -31,7 +31,7 @@ The [macOS Agent plan](../../docs/macos-agent-plan.md) defines the next three ph
 
 ## What is implemented
 
-- Firebase initializes at launch from a local copy of the iOS `GoogleService-Info.plist`. The status menu can **Sign in with Apple** and show the Firebase UID. The session survives quit and relaunch. Anonymous sessions are rejected. A signed-in Mac publishes a Firestore heartbeat at `/users/{uid}/devices/{deviceId}` and lists other devices (for example iPhone) under the UID. Remote commands are not implemented.
+- Firebase initializes at launch from a local copy of the iOS `GoogleService-Info.plist`. The status menu can **Sign in with Apple** and show the Firebase UID. The session survives quit and relaunch. Anonymous sessions are rejected. A signed-in Mac publishes a Firestore heartbeat at `/users/{uid}/devices/{deviceId}` and lists other devices (for example iPhone) under the UID. **Enable requests from my iPhone** (off by default) lets the Mac claim an allowlisted `openYouTube` command and open `https://www.youtube.com`. CoCaptain does not send Mac commands.
 - A single **CAOCAP** window (placeholder Hello World content).
 - The CoCaptain porthole **app icon** and the cube-and-orbit **menu-bar** status item.
 - A floating Agent above other apps. Drag to move; click to toggle its own chat beside it. The chat stays within the screen's visible bounds and follows the Agent after dragging. CoCaptain and CoStar share local play: mood faces, squash-and-bounce, idle "Hey!" / sleepy bubbles, a lean toward the nearby pointer, double-tap spin, a right-click Spin / Wave hello menu, and a one-time confetti burst the first time each persona opens chat. This is desktop character behavior, not an AI connection.
@@ -44,12 +44,12 @@ Wake/tuck, persona, and companion position persist locally. Reduced Motion turns
 
 ## What is not implemented
 
-Explore, Build, and Collaborate are planned and not present on Mac. There is no canvas, live agent conversation, computer-use execution, remote commands, or agent-driven companion status. The chat is a local UI preview, not a working AI connection.
+Explore, Build, and Collaborate are planned and not present on Mac. There is no canvas, live agent conversation, computer-use execution, or agent-driven companion status. The chat is a local UI preview, not a working AI connection.
 
-To confirm the same account on both devices, sign in with Apple on Mac and with a provider-linked Apple account in iOS Profile (not anonymous). The Firebase UIDs should match. After rules are deployed, iOS Profile **Devices** should show the Mac and the Mac menu should show the iPhone. A second Firebase account must not see that path. Guest iOS sessions must not write a heartbeat.
+To confirm the same account on both devices, sign in with Apple on Mac and with a provider-linked Apple account in iOS Profile (not anonymous). The Firebase UIDs should match. After rules are deployed, iOS Profile **Devices** should show the Mac and the Mac menu should show the iPhone. Turn on **Enable requests from my iPhone**, then **Open YouTube on Mac** in iOS Profile should open YouTube in the Mac browser and show **Opened**. If the toggle is off, YouTube must not open. A second Firebase account must not see that path. Guest iOS sessions must not write a heartbeat or create commands.
 
 The idle and mood sprites in `caocap/resources/Assets.xcassets` were knocked out from CDL avatar art for a transparent desktop pet. Do not edit files under `assets/brand/` when changing app assets. See [companion play](../../docs/macos-companion-play-plan.md).
 
 There is no test target. After Mac UI changes, run the app and check wake/tuck, persona switch, dragging with chat open, tap-to-toggle chat, close/reopen draft retention, multiline and blank prompts, Command-Return, Escape, and hub window focus through the grid button. Check that chat remains visible near screen edges and that long prompts scroll without covering the composer. For companion play, also check hover face, drag squash and land bounce, idle hey/zzz then wake on hover, peek toward the pointer, double-tap spin, right-click actions, first-chat confetti once per persona, and that Reduced Motion kills the motion toys.
 
-On **My Mac**, also check Sign in with Apple from the status menu: a fresh launch is signed out; a successful sign-in shows a UID; quit and reopen restores that UID without another sheet; Sign Out returns to signed out; canceling the Apple sheet does not invent a UID. Compare the Mac UID with a provider-linked iOS Profile. With both apps signed into that account on different networks, the Mac menu should list the iPhone (or **No other devices** if the phone is not running).
+On **My Mac**, also check Sign in with Apple from the status menu: a fresh launch is signed out; a successful sign-in shows a UID; quit and reopen restores that UID without another sheet; Sign Out returns to signed out; canceling the Apple sheet does not invent a UID. Compare the Mac UID with a provider-linked iOS Profile. With both apps signed into that account on different networks, the Mac menu should list the iPhone (or **No other devices** if the phone is not running). With requests enabled, Open YouTube on Mac on the phone should open the default browser to YouTube.

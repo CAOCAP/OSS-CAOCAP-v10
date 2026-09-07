@@ -27,3 +27,5 @@ playground.xcworkspace
 
 # Firebase
 GoogleService-Info.plist
+firebase/functions/node_modules/
+firebase/functions/lib/

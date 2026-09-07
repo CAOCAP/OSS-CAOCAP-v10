@@ -5,6 +5,7 @@ import OSLog
 struct ProfileView: View {
     @Environment(AuthenticationManager.self) private var authManager
     @Environment(DevicePresence.self) private var devicePresence
+    @Environment(RemoteCommandClient.self) private var remoteCommandClient
     @Environment(\.dismiss) private var dismiss
     private let logger = Logger(subsystem: "CAOCAP", category: "ProfileView")
     @AppStorage("app_theme") private var selectedTheme = "System"
@@ -123,6 +124,15 @@ struct ProfileView: View {
                                                 color: .blue
                                             )
                                         }
+                                    }
+                                    SettingsRow(
+                                        icon: "play.rectangle.fill",
+                                        title: "Open YouTube on Mac",
+                                        subtitle: remoteCommandSubtitle,
+                                        color: .red
+                                    ) {
+                                        guard hasMacDevice, !remoteCommandClient.isSending else { return }
+                                        Task { await remoteCommandClient.openYouTubeOnMac() }
                                     }
                                 }
                             }
@@ -256,6 +266,17 @@ struct ProfileView: View {
         }
     }
     
+    private var hasMacDevice: Bool {
+        devicePresence.otherDevices.contains { $0.platform == "macos" }
+    }
+
+    private var remoteCommandSubtitle: LocalizedStringKey? {
+        let label = remoteCommandClient.receipt.label
+        if !hasMacDevice { return "No Mac on this account" }
+        if label.isEmpty { return nil }
+        return LocalizedStringKey(stringLiteral: label)
+    }
+
     private var currentColorScheme: ColorScheme? {
         switch selectedTheme {
         case "Light": return .light
@@ -269,4 +290,5 @@ struct ProfileView: View {
     ProfileView()
         .environment(AuthenticationManager())
         .environment(DevicePresence())
+        .environment(RemoteCommandClient())
 }

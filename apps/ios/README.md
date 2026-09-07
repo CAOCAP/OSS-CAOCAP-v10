@@ -11,15 +11,15 @@ The app now opens to an agent library with three native bottom tabs on both iPho
 - **Create agent** opens a dismissible setup destination. Wizard steps and actual creation are not implemented.
 - **Explore and Communities** are placeholder destinations. Discovery, acquisition, membership, and shared building are not connected.
 - **Sign-in** uses Firebase Auth (anonymous first, then Apple / Google / GitHub). **CAOCAP Pro** remains available through Profile / Settings and usage limits.
-- **Devices** in Profile lists other signed-in installs on the same provider-linked account (for example a Mac). Guest sessions do not publish a heartbeat. Remote commands are not implemented.
+- **Devices** in Profile lists other signed-in installs on the same provider-linked account (for example a Mac). Guest sessions do not publish a heartbeat. **Open YouTube on Mac** asks a Cloud Function to create an allowlisted command; an opted-in Mac opens `https://www.youtube.com`. CoCaptain does not send Mac commands.
 
-Removal changes Home membership only; it does not delete canvas or conversation files. Cloud library sync and remote Mac execution are not implemented.
+Removal changes Home membership only; it does not delete canvas or conversation files. Cloud library sync is not implemented.
 
 ## Setup
 
 1. Open [caocap.xcodeproj](caocap/caocap.xcodeproj) and let Xcode resolve its Swift packages.
 2. Register one Apple app in your Firebase project using the shared bundle identifier `com.Ficruty.caocap`. Add its `GoogleService-Info.plist` to the iOS `caocap` target at [caocap/Resources/Config/GoogleService-Info.plist](caocap/caocap/Resources/Config/GoogleService-Info.plist). Copy the same plist into the [macOS app](../macos/README.md). Do not register a second Firebase Apple app for Mac.
-3. Deploy device-heartbeat rules from [firebase/](../../firebase/) with `firebase deploy --only firestore:rules` (use the same Firebase project as `GoogleService-Info.plist`). Until those rules are live, Profile will not see a Mac and the Mac menu will not see an iPhone.
+3. Deploy Firestore rules and the `createOpenYouTube` function from [firebase/](../../firebase/) with `firebase deploy --only functions,firestore:rules`. The project must be on the **Blaze** plan. Until that deploy succeeds, device listing and Open YouTube on Mac will fail.
 4. For Google sign-in, enable the Google provider in Firebase Authentication and replace the Google URL scheme in [Info.plist](caocap/caocap/Resources/Config/Info.plist) with your configuration's `REVERSED_CLIENT_ID`.
 5. Select the `caocap` scheme and an iOS 26 or later simulator. For a physical device, configure your development team under **Signing & Capabilities**.
 6. Run with **Product → Run** or `Command-R`.

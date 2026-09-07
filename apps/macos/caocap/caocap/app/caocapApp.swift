@@ -13,11 +13,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let companion = CompanionController()
     let authenticationManager = AuthenticationManager()
     let devicePresence = DevicePresence()
+    let remoteCommandRelay = RemoteCommandRelay()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FirebaseConfiguration.configure()
         authenticationManager.start()
         devicePresence.attach(authManager: authenticationManager)
+        remoteCommandRelay.attach(authManager: authenticationManager)
         companion.install()
     }
 
@@ -56,7 +58,8 @@ struct caocapApp: App {
             StatusItemMenu(
                 companion: appDelegate.companion,
                 authenticationManager: appDelegate.authenticationManager,
-                devicePresence: appDelegate.devicePresence
+                devicePresence: appDelegate.devicePresence,
+                remoteCommandRelay: appDelegate.remoteCommandRelay
             )
         } label: {
             StatusItemLabel()
@@ -84,6 +87,7 @@ private struct StatusItemMenu: View {
     @Bindable var companion: CompanionController
     @Bindable var authenticationManager: AuthenticationManager
     @Bindable var devicePresence: DevicePresence
+    @Bindable var remoteCommandRelay: RemoteCommandRelay
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -119,6 +123,7 @@ private struct StatusItemMenu: View {
                         .disabled(true)
                 }
             }
+            Toggle("Enable requests from my iPhone", isOn: $remoteCommandRelay.requestsEnabled)
             Button("Sign Out") {
                 authenticationManager.signOut()
             }

@@ -3969,6 +3969,9 @@
         }
       }
     },
+    "No Mac on this account" : {
+
+    },
     "No messages yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5677,6 +5680,9 @@
           }
         }
       }
+    },
+    "Open YouTube on Mac" : {
+
     },
     "Options for %@" : {
       "comment" : "A contextual menu that appears when tapping the 3-dot menu button in the upper-right corner of an agent card.",

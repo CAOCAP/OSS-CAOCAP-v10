@@ -179,4 +179,5 @@ struct ContentView: View {
     ContentView()
         .environment(AuthenticationManager())
         .environment(DevicePresence())
+        .environment(RemoteCommandClient())
 }
