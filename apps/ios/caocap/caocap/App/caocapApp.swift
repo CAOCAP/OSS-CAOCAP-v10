@@ -15,13 +15,14 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 
     /// Owned here so it is guaranteed to exist before `didFinishLaunchingWithOptions` fires.
     let authManager = AuthenticationManager()
+    let devicePresence = DevicePresence()
 
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         PerformanceSignposts.beginLaunch()
-        AppConfiguration.shared.configure(authManager: authManager)
+        AppConfiguration.shared.configure(authManager: authManager, devicePresence: devicePresence)
         AppIconService.applySavedIcon()
         return true
     }
@@ -49,6 +50,7 @@ struct caocapApp: App {
         WindowGroup {
             ContentView()
                 .environment(delegate.authManager)
+                .environment(delegate.devicePresence)
                 .preferredColorScheme(colorScheme)
                 .environment(\.locale, appLocale)
                 .environment(\.layoutDirection, appLayoutDirection)

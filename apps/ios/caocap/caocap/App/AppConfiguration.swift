@@ -11,7 +11,7 @@ import GoogleSignIn
 ///
 /// Usage:
 /// ```swift
-/// AppConfiguration.shared.configure(authManager: authManager)
+/// AppConfiguration.shared.configure(authManager: authManager, devicePresence: devicePresence)
 /// ```
 final class AppConfiguration {
 
@@ -25,7 +25,7 @@ final class AppConfiguration {
 
     /// Entry point for all app-level configuration.
     /// Call once from `AppDelegate.application(_:didFinishLaunchingWithOptions:)`.
-    func configure(authManager: AuthenticationManager) {
+    func configure(authManager: AuthenticationManager, devicePresence: DevicePresence) {
         configureFirebase()
         configureGoogleSignIn()
         // Preload local Gemma 4 model if selected as preferred
@@ -36,6 +36,7 @@ final class AppConfiguration {
         // the auth listener starts on the next main actor run loop loop tick.
         Task { @MainActor in
             authManager.start()
+            devicePresence.attach(authManager: authManager)
         }
         logger.info("App bootstrap complete.")
     }

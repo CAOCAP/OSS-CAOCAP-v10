@@ -4,6 +4,7 @@ import OSLog
 
 struct ProfileView: View {
     @Environment(AuthenticationManager.self) private var authManager
+    @Environment(DevicePresence.self) private var devicePresence
     @Environment(\.dismiss) private var dismiss
     private let logger = Logger(subsystem: "CAOCAP", category: "ProfileView")
     @AppStorage("app_theme") private var selectedTheme = "System"
@@ -106,6 +107,26 @@ struct ProfileView: View {
                                     }
                                 }
                             }
+                            if authManager.isAuthenticated {
+                                SettingsSection("Devices") {
+                                    if devicePresence.otherDevices.isEmpty {
+                                        SettingsRow(
+                                            icon: "laptopcomputer",
+                                            title: "No other devices",
+                                            color: .secondary
+                                        )
+                                    } else {
+                                        ForEach(devicePresence.otherDevices) { device in
+                                            SettingsRow(
+                                                icon: device.rowIcon,
+                                                title: LocalizedStringKey(stringLiteral: device.menuLabel()),
+                                                color: .blue
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             // Account Section
                             SettingsSection("Account") {
                                 if authManager.isAnonymous {
@@ -247,4 +268,5 @@ struct ProfileView: View {
 #Preview {
     ProfileView()
         .environment(AuthenticationManager())
+        .environment(DevicePresence())
 }

@@ -178,4 +178,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(AuthenticationManager())
+        .environment(DevicePresence())
 }

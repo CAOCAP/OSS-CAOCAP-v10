@@ -12,10 +12,12 @@ import SwiftUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let companion = CompanionController()
     let authenticationManager = AuthenticationManager()
+    let devicePresence = DevicePresence()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FirebaseConfiguration.configure()
         authenticationManager.start()
+        devicePresence.attach(authManager: authenticationManager)
         companion.install()
     }
 
@@ -53,7 +55,8 @@ struct caocapApp: App {
         MenuBarExtra {
             StatusItemMenu(
                 companion: appDelegate.companion,
-                authenticationManager: appDelegate.authenticationManager
+                authenticationManager: appDelegate.authenticationManager,
+                devicePresence: appDelegate.devicePresence
             )
         } label: {
             StatusItemLabel()
@@ -80,6 +83,7 @@ private struct StatusItemLabel: View {
 private struct StatusItemMenu: View {
     @Bindable var companion: CompanionController
     @Bindable var authenticationManager: AuthenticationManager
+    @Bindable var devicePresence: DevicePresence
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -106,6 +110,15 @@ private struct StatusItemMenu: View {
         case .signedIn(let uid):
             Button("UID: \(uid)") {}
                 .disabled(true)
+            if devicePresence.otherDevices.isEmpty {
+                Button("No other devices") {}
+                    .disabled(true)
+            } else {
+                ForEach(devicePresence.otherDevices) { device in
+                    Button(device.menuLabel()) {}
+                        .disabled(true)
+                }
+            }
             Button("Sign Out") {
                 authenticationManager.signOut()
             }
