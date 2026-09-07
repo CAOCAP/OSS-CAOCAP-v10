@@ -327,6 +327,13 @@ public struct CommandIntentResolver {
                 "الحد",
                 "الحصة"
             ]
+        case .openYouTubeOnMac:
+            return [
+                "open youtube on my mac",
+                "open youtube on mac",
+                "افتح يوتيوب على الماك",
+                "افتح يوتيوب على جهاز الماك"
+            ]
         }
     }
 

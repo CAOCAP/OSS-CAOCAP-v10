@@ -4,6 +4,9 @@ import UniformTypeIdentifiers
 /// Attaches session lifecycle handlers: workspace sync, onboarding, undo bridge, and geometry.
 struct AppSessionLifecycle: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(AuthenticationManager.self) private var authManager
+    @Environment(DevicePresence.self) private var devicePresence
+    @Environment(RemoteCommandClient.self) private var remoteCommandClient
     @Bindable var session: AppSessionCoordinator
     let geometry: GeometryProxy
     let undoManager: UndoManager?
@@ -15,6 +18,13 @@ struct AppSessionLifecycle: ViewModifier {
             }
             .onAppear {
                 session.bootstrap(undoManager: undoManager)
+                session.attachRemoteMacCommands(
+                    RemoteMacCommandRunner(
+                        client: remoteCommandClient,
+                        authManager: authManager,
+                        devicePresence: devicePresence
+                    )
+                )
                 session.updateContainerSize(geometry.size)
             }
             .task {

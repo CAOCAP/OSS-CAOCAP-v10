@@ -1,6 +1,6 @@
 # CoCaptain Feature
 
-CoCaptain is the in-app assistant. It talks about the current canvas, keeps a sign-in-aware conversation, and can request canvas actions such as creating or moving a card. It does not propose or apply HTML, SRS, or Mini-App source edits.
+CoCaptain is the in-app assistant. It talks about the current canvas, keeps a sign-in-aware conversation, and can request canvas actions such as creating or moving a card. It does not propose or apply HTML, SRS, or Mini-App source edits. In Agent mode it can also send the allowlisted Open YouTube on Mac command. Ask / Plan stay prose-only.
 
 CoCaptain and CoStar are separate default agents on Home. Each Workspace selects its own canvas-backed conversation archive, chat title, avatar, and session draft. The FAB is available inside that Workspace. Ask / Plan modes stay prose-only.
 
@@ -22,7 +22,7 @@ Supporting services live outside this feature:
 ## Agent Flow
 
 1. The user picks Agent, Ask, or Plan in the composer (persisted as `cocaptain.chatMode`, default Agent) and sends a message through `CoCaptainViewModel`.
-2. Direct commands are resolved locally with `CommandIntentResolver` when possible. In Ask/Plan modes, mutating shortcuts are skipped so those messages go to the model as chat.
+2. Direct commands are resolved locally with `CommandIntentResolver` when possible. In Ask/Plan modes, mutating shortcuts and Open YouTube on Mac are skipped so those messages go to the model as chat.
 3. Otherwise, `CoCaptainAgentCoordinator` builds project context from the active `ProjectStore`. In project scope, an optional `@` pin focuses the prompt on one card via `buildNodePromptContext` without switching to a node-scoped session.
 4. `CoCaptainTurnPlan` merges turn purpose with the selected `CoCaptainChatMode` to choose the effective execution policy.
 5. `LLMService` streams text back into the current assistant bubble. Offline turns automatically use a ready local Gemma model without changing the saved online preference.
@@ -147,6 +147,7 @@ Review cards with a target node include **View on Canvas**, which flies the work
 - Switch to Ask and send the same prompt; confirm prose-only reply with no review staging.
 - Open node-scoped CoCaptain and confirm it uses the same Agent/Ask/Plan selection.
 - Send a direct navigation command and confirm safe actions execute or review appears as expected.
+- In Agent mode, say “open YouTube on my Mac” with a signed-in Mac that has requests enabled; confirm chat shows the receipt and YouTube opens. Ask mode with the same phrase must stay prose-only.
 - On iPhone and iPad, confirm CoCaptain opens as a detented sheet (large from FAB tap / ⌘J, medium from the FAB Chat bubble).
 
 ## Test Targets
@@ -159,7 +160,7 @@ Useful test coverage for this feature:
 - function-call adapter mapping for safe actions and pending actions.
 - HTML / SRS `propose_node_edit` and `node_edit` payloads are dropped.
 - Review Lifecycle staging and transitions for app actions, including unavailable actions, bulk decisions, and node-only persistence.
-- direct command handling for autonomous vs review-required actions; Ask skips mutating short-circuits.
+- direct command handling for autonomous vs review-required actions; Ask skips mutating short-circuits and Open YouTube on Mac.
 - Agent pure-prose turns finish without forced edit retries.
 - Ask never stages a review bundle from model output.
 - turn-plan policy mapping for Agent, Ask, and onboarding purposes.

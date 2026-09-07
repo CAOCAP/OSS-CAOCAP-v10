@@ -33,6 +33,8 @@ public final class CoCaptainViewModel {
             bindReviewSessionIfNeeded()
         }
     }
+    @ObservationIgnored
+    public var remoteMacCommands: (any RemoteMacCommandRunning)?
 
     /// Tracks the ID of the message that was last visible to the user.
     public var lastScrollPosition: UUID?
@@ -442,7 +444,13 @@ public final class CoCaptainViewModel {
         synchronizeActiveConversation()
 
         if purpose == .standard,
-           handleDirectCommand(text, turnID: turnID, purpose: purpose, mode: effectiveMode) {
+           handleDirectCommand(
+            text,
+            turnID: turnID,
+            purpose: purpose,
+            mode: effectiveMode,
+            turnSessionEpoch: turnSessionEpoch
+           ) {
             return true
         }
 
@@ -512,6 +520,7 @@ public final class CoCaptainViewModel {
                     userMessage: modelMessage,
                     store: store,
                     dispatcher: actionDispatcher,
+                    remoteMacCommands: remoteMacCommands,
                     scope: scope,
                     purpose: purpose,
                     turnPlan: turnPlan,
@@ -831,13 +840,14 @@ public final class CoCaptainViewModel {
     /// Handles simple app commands locally so navigation does not need a model
     /// round trip. Mutating commands still become review items.
     ///
-    /// In Ask/Plan modes, mutating command shortcuts are disabled so those
-    /// messages go to the model as chat instead of executing or staging canvas changes.
+    /// In Ask/Plan modes, mutating shortcuts and the Open YouTube on Mac command
+    /// are skipped so those messages go to the model as chat.
     private func handleDirectCommand(
         _ text: String,
         turnID: UUID,
         purpose: CoCaptainTurnPurpose,
-        mode: CoCaptainChatMode
+        mode: CoCaptainChatMode,
+        turnSessionEpoch: UUID
     ) -> Bool {
         guard scope == .project else { return false }
         guard let actionDispatcher,
@@ -846,8 +856,16 @@ public final class CoCaptainViewModel {
             return false
         }
 
-        if mode.isProseOnly, definition.isMutating {
+        if mode.isProseOnly, definition.isMutating || actionID == .openYouTubeOnMac {
             return false
+        }
+
+        if actionID == .openYouTubeOnMac {
+            return startOpenYouTubeOnMacCommand(
+                turnID: turnID,
+                purpose: purpose,
+                turnSessionEpoch: turnSessionEpoch
+            )
         }
 
         if !definition.allowsAutonomousExecution {
@@ -893,6 +911,56 @@ public final class CoCaptainViewModel {
         )
         turnState = .idle
         synchronizeActiveConversation()
+        return true
+    }
+
+    private func startOpenYouTubeOnMacCommand(
+        turnID: UUID,
+        purpose: CoCaptainTurnPurpose,
+        turnSessionEpoch: UUID
+    ) -> Bool {
+        guard let remoteMacCommands else { return false }
+
+        let executionID = UUID()
+        items.append(
+            CoCaptainTimelineItem(
+                id: executionID,
+                content: .execution(
+                    ExecutionStatusItem(
+                        id: executionID,
+                        summary: LocalizationManager.shared.localizedString(
+                            "Asking your Mac to open YouTube…"
+                        )
+                    )
+                )
+            )
+        )
+        isThinking = true
+        turnState = .thinking
+        progressPhase = .applying
+        synchronizeActiveConversation()
+        requestScrollToBottom()
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let message = await remoteMacCommands.requestOpenYouTubeOnMac()
+            guard self.sessionEpoch == turnSessionEpoch else { return }
+            if let index = self.items.firstIndex(where: { $0.id == executionID }) {
+                self.items[index].content = .execution(
+                    ExecutionStatusItem(id: executionID, summary: message)
+                )
+            }
+            self.isThinking = false
+            self.progressPhase = nil
+            self.markAssistantResponseCompleted(
+                turnID: turnID,
+                purpose: purpose,
+                successful: true
+            )
+            self.turnState = .idle
+            self.synchronizeActiveConversation()
+            self.requestScrollToBottom()
+        }
         return true
     }
 

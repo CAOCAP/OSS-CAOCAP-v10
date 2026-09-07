@@ -18,6 +18,7 @@ final class AppSessionCoordinator {
     var router = AppRouter()
     var coCaptain = CoCaptainViewModel()
     private(set) var actionDispatcher = AppActionDispatcher()
+    @ObservationIgnored private var remoteMacCommands: (any RemoteMacCommandRunning)?
 
     var showingFileImporter = false
     var showingPurchaseSheet = false
@@ -152,9 +153,14 @@ final class AppSessionCoordinator {
         actionDispatcher.refreshCopilotActionTitle()
         syncViewportWithActiveStore()
         attachUndoManager(undoManager)
-        coCaptain.configureProjectSession(store: router.activeStore, dispatcher: actionDispatcher)
+        configureCoCaptainProjectSession()
 
         scheduleLaunchOverlayDismissal()
+    }
+
+    func attachRemoteMacCommands(_ runner: any RemoteMacCommandRunning) {
+        remoteMacCommands = runner
+        coCaptain.remoteMacCommands = runner
     }
 
     /// Dismisses the launch overlay when the session is ready, after a short brand
@@ -211,7 +217,7 @@ final class AppSessionCoordinator {
         activeUndoManager = workspaceUndo
         bindCoCaptainSession()
         attachUndoManager(workspaceUndo)
-        coCaptain.configureProjectSession(store: router.activeStore, dispatcher: actionDispatcher)
+        configureCoCaptainProjectSession()
         syncViewportWithActiveStore()
     }
 
@@ -341,7 +347,7 @@ final class AppSessionCoordinator {
         bindCoCaptainSession()
         configureActionsIfNeeded()
         attachUndoManager(activeUndoManager)
-        coCaptain.configureProjectSession(store: router.activeStore, dispatcher: actionDispatcher)
+        configureCoCaptainProjectSession()
         syncViewportWithActiveStore()
         launchDismissTask?.cancel()
         launchDismissTask = nil
@@ -692,6 +698,17 @@ final class AppSessionCoordinator {
         actionDispatcher.register(.createSubCanvas) { [weak self] in
             self?.router.activeStore.addNode(type: .subCanvas)
         }
+        actionDispatcher.register(.openYouTubeOnMac) { [weak self] _ -> String? in
+            Task { @MainActor [weak self] in
+                _ = await self?.remoteMacCommands?.requestOpenYouTubeOnMac()
+            }
+            return LocalizationManager.shared.localizedString("Asking your Mac to open YouTube…")
+        }
+    }
+
+    private func configureCoCaptainProjectSession() {
+        coCaptain.remoteMacCommands = remoteMacCommands
+        coCaptain.configureProjectSession(store: router.activeStore, dispatcher: actionDispatcher)
     }
 
     private func toggleGrid() {
@@ -813,7 +830,7 @@ final class AppSessionCoordinator {
         coCaptainStartsLarge = startsLarge
         coCaptainAllowsMediumDetent = !startsLarge
         coCaptainDetent = detent
-        coCaptain.configureProjectSession(store: router.activeStore, dispatcher: actionDispatcher)
+        configureCoCaptainProjectSession()
         coCaptain.setPresented(true)
     }
 

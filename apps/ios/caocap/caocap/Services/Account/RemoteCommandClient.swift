@@ -22,9 +22,33 @@ enum RemoteCommandReceipt: Equatable {
     }
 }
 
+enum RemoteCommandChatCopy {
+    static func message(for receipt: RemoteCommandReceipt) -> String {
+        switch receipt {
+        case .opened:
+            return LocalizationManager.shared.localizedString("YouTube opened on your Mac")
+        case .failed, .none:
+            return LocalizationManager.shared.localizedString("Your Mac could not open YouTube")
+        case .macRequestsOff, .pending:
+            return LocalizationManager.shared.localizedString(
+                "Your Mac has requests from iPhone turned off"
+            )
+        }
+    }
+}
+
 enum RemoteCommandMapping {
     static let youtubeURL = "https://www.youtube.com"
     static let pendingTimeout: TimeInterval = 20
+
+    static func isSettled(_ receipt: RemoteCommandReceipt) -> Bool {
+        switch receipt {
+        case .opened, .failed, .macRequestsOff:
+            return true
+        case .none, .pending:
+            return false
+        }
+    }
 
     static func receipt(
         status: String?,
@@ -117,6 +141,21 @@ final class RemoteCommandClient {
             pendingSince = nil
         }
         isSending = false
+    }
+
+    /// Waits until the current command receipt is terminal, or the pending timeout elapses.
+    func waitUntilSettled() async -> RemoteCommandReceipt {
+        let deadline = Date().addingTimeInterval(RemoteCommandMapping.pendingTimeout + 1)
+        while Date() < deadline, !RemoteCommandMapping.isSettled(receipt) {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        if RemoteCommandMapping.isSettled(receipt) {
+            return receipt
+        }
+        if receipt == .pending {
+            return .macRequestsOff
+        }
+        return receipt
     }
 
     private func apply(_ state: AuthState) {

@@ -53,4 +53,15 @@ struct NodeActionAppActionTests {
             #expect(id.pinableNodeAction != nil)
         }
     }
+
+    @MainActor
+    @Test func dispatcherExposesOpenYouTubeOnMacWithoutPinning() throws {
+        let dispatcher = AppActionDispatcher()
+        let definition = try #require(dispatcher.definition(for: .openYouTubeOnMac))
+        #expect(!definition.isMutating)
+        #expect(definition.allowsAutonomousExecution)
+        #expect(!definition.canPinToCanvas)
+        #expect(definition.category == .assistant)
+        #expect(AppActionID.openYouTubeOnMac.pinableNodeAction == nil)
+    }
 }

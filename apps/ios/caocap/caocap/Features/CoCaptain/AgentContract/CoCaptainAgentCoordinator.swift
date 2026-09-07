@@ -146,6 +146,7 @@ public final class CoCaptainAgentCoordinator {
 
     private let logger = Logger(subsystem: "com.caocap.CoCaptainAgentCoordinator", category: "Coordinator")
     private static let maxAgenticRetries = 2
+    private var remoteMacCommands: (any RemoteMacCommandRunning)?
 
     /// Resets the chat history for the given scope, forwarding directly to the
     /// LLM client. Defaults to the project scope for callers that don't track scope.
@@ -167,6 +168,7 @@ public final class CoCaptainAgentCoordinator {
         userMessage: String,
         store: ProjectStore?,
         dispatcher: (any AppActionPerforming)?,
+        remoteMacCommands: (any RemoteMacCommandRunning)? = nil,
         scope: CoCaptainAgentScope = .project,
         purpose: CoCaptainTurnPurpose = .standard,
         turnPlan: CoCaptainTurnPlan? = nil,
@@ -174,6 +176,9 @@ public final class CoCaptainAgentCoordinator {
         attachments: [CoCaptainAttachment] = [],
         onVisibleText: @escaping (String) -> Void
     ) async throws -> CoCaptainAgentRunResult {
+        let previousRemoteMacCommands = self.remoteMacCommands
+        self.remoteMacCommands = remoteMacCommands
+        defer { self.remoteMacCommands = previousRemoteMacCommands }
         let resolvedTurnPlan = turnPlan ?? CoCaptainTurnPlan(purpose: purpose, mode: .agent)
         let contextDetailLevel = resolvedTurnPlan.contextDetailLevel
         let contextBuilder = contextBuilder ?? ProjectContextBuilder(
@@ -392,7 +397,7 @@ public final class CoCaptainAgentCoordinator {
         }
 
         let safeActions = connectionFallback ? [] : (payload?.safeActions ?? [])
-        let executionSummary = executeSafeActions(safeActions, dispatcher: dispatcher, store: store)
+        let executionSummary = await executeSafeActions(safeActions, dispatcher: dispatcher, store: store)
         let reviewDraft = makeReviewDraft(
             pendingActions: payload?.pendingActions ?? []
         )
@@ -607,19 +612,33 @@ public final class CoCaptainAgentCoordinator {
         _ actions: [CoCaptainAgentAction],
         dispatcher: (any AppActionPerforming)?,
         store: ProjectStore?
-    ) -> ExecutionStatusItem? {
+    ) async -> ExecutionStatusItem? {
         guard let dispatcher, !actions.isEmpty else { return nil }
 
         // Create a checkpoint before executing multiple safe actions to allow revert
         store?.createAutoCheckpoint(label: "Before AI Actions")
 
-        let executedSummaries = actions.compactMap { action -> String? in
-            guard let id = AppActionID(rawValue: action.actionID) else { return nil }
+        var executedSummaries: [String] = []
+        for action in actions {
+            guard let id = AppActionID(rawValue: action.actionID) else { continue }
+            if id == .openYouTubeOnMac {
+                if let remoteMacCommands {
+                    let message = await remoteMacCommands.requestOpenYouTubeOnMac()
+                    executedSummaries.append(message)
+                }
+                continue
+            }
             let result = dispatcher.perform(id, source: .agentAutomatic, arguments: action.args)
-            return result.executed ? result.title : nil
+            if result.executed {
+                executedSummaries.append(result.title)
+            }
         }
 
         guard !executedSummaries.isEmpty else { return nil }
+        if actions.count == 1,
+           actions.first.flatMap({ AppActionID(rawValue: $0.actionID) }) == .openYouTubeOnMac {
+            return ExecutionStatusItem(summary: executedSummaries[0])
+        }
         return ExecutionStatusItem(
             summary: LocalizationManager.shared.localizedString(
                 "agent.executedSummary",

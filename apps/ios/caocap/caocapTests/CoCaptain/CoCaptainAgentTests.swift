@@ -1984,6 +1984,105 @@ struct CoCaptainAgentTests {
     }
 
     @MainActor
+    @Test func commandIntentResolverMatchesOpenYouTubeOnMac() {
+        let resolver = CommandIntentResolver()
+        let actions = TestActionDispatcher().availableActions
+
+        #expect(resolver.resolve("open youtube on my mac", availableActions: actions) == .openYouTubeOnMac)
+        #expect(resolver.resolve("open youtube on mac", availableActions: actions) == .openYouTubeOnMac)
+        #expect(resolver.resolve("please open youtube on my mac", availableActions: actions) == .openYouTubeOnMac)
+        #expect(resolver.resolve("افتح يوتيوب على الماك", availableActions: actions) == .openYouTubeOnMac)
+        #expect(resolver.resolve("افتح يوتيوب على جهاز الماك", availableActions: actions) == .openYouTubeOnMac)
+        #expect(resolver.resolve("youtube", availableActions: actions) == nil)
+        #expect(resolver.resolve("open youtube", availableActions: actions) == nil)
+        #expect(
+            resolver.resolve(
+                "find a beginner SwiftUI tutorial on YouTube and open it on my Mac",
+                availableActions: actions
+            ) == nil
+        )
+        #expect(resolver.resolve("do not open youtube on my mac", availableActions: actions) == nil)
+    }
+
+    @MainActor
+    @Test func agentModeOpenYouTubeOnMacUsesReceiptFromRunner() async throws {
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let vm = CoCaptainViewModel()
+        vm.store = makeStore()
+        vm.actionDispatcher = dispatcher
+        vm.remoteMacCommands = runner
+        vm.chatMode = .agent
+
+        vm.sendMessage("open youtube on my mac")
+
+        for _ in 0..<20 where vm.isThinking {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(!vm.isThinking)
+        #expect(runner.requestCount == 1)
+        #expect(dispatcher.executedActionIDs.isEmpty)
+        #expect(
+            vm.items.contains { item in
+                guard case .execution(let status) = item.content else { return false }
+                return status.summary == "YouTube opened on your Mac"
+            }
+        )
+    }
+
+    @MainActor
+    @Test func askModeSkipsOpenYouTubeOnMacDirectCommand() async throws {
+        let llm = TestLLMClient(response: "I can talk about sending that to your Mac in Agent mode.")
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let vm = CoCaptainViewModel(agentCoordinator: coordinator)
+        vm.store = makeStore()
+        vm.actionDispatcher = dispatcher
+        vm.remoteMacCommands = runner
+        vm.chatMode = .ask
+
+        vm.sendMessage("open youtube on my mac")
+
+        for _ in 0..<20 where vm.isThinking {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(runner.requestCount == 0)
+        #expect(dispatcher.executedActionIDs.isEmpty)
+        #expect(llm.receivedMessages == ["open youtube on my mac"])
+        #expect(llm.receivedChatModes == [.ask])
+        #expect(llm.receivedExpectsStructuredResponse == [false])
+    }
+
+    @MainActor
+    @Test func agentModeRunsOpenYouTubeOnMacFromSafeAction() async throws {
+        let dispatcher = TestActionDispatcher()
+        let runner = TestRemoteMacCommandRunner()
+        let llm = TestLLMClient(
+            response: "Opening YouTube on your Mac.",
+            functionCalls: [[
+                CoCaptainAgentFunctionCall(
+                    name: CoCaptainFunctionCallAgentAdapter.requestAppActionName,
+                    arguments: ["actionId": "open_youtube_on_mac", "executionMode": "safe"]
+                )
+            ]]
+        )
+        let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
+        let result = try await coordinator.run(
+            userMessage: "open youtube on my mac",
+            store: makeStore(),
+            dispatcher: dispatcher,
+            remoteMacCommands: runner
+        ) { _ in }
+
+        #expect(runner.requestCount == 1)
+        #expect(dispatcher.executedActionIDs.isEmpty)
+        #expect(result.executionSummary?.summary == "YouTube opened on your Mac")
+    }
+
+    @MainActor
     @Test func agentPureProseResponseDoesNotRetry() async throws {
         let llm = TestLLMClient(response: "Here are three ideas to explore next.")
         let coordinator = CoCaptainAgentCoordinator(llmClient: llm)
@@ -2741,6 +2840,14 @@ private final class TestActionDispatcher: AppActionPerforming {
             category: .assistant,
             isMutating: false,
             allowsAutonomousExecution: false
+        ),
+        AppActionDefinition(
+            id: .openYouTubeOnMac,
+            title: "Open YouTube homepage on the signed-in Mac (no search)",
+            icon: "play.rectangle.fill",
+            category: .assistant,
+            isMutating: false,
+            allowsAutonomousExecution: true
         )
     ]
 
@@ -2764,5 +2871,16 @@ private final class TestActionDispatcher: AppActionPerforming {
         executedActionIDs.append(id)
         executedSources.append(source)
         return AppActionResult(actionID: id, title: definition.title, executed: true, message: "\(definition.title) executed.")
+    }
+}
+
+@MainActor
+private final class TestRemoteMacCommandRunner: RemoteMacCommandRunning {
+    var requestCount = 0
+    var result = "YouTube opened on your Mac"
+
+    func requestOpenYouTubeOnMac() async -> String {
+        requestCount += 1
+        return result
     }
 }

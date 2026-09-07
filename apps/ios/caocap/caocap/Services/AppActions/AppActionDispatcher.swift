@@ -40,6 +40,7 @@ public enum AppActionID: String, CaseIterable, Identifiable, Codable, Hashable {
     case openAppIcon = "open_app_icon"
     case changeCopilot = "change_copilot"
     case openUsage = "open_usage"
+    case openYouTubeOnMac = "open_youtube_on_mac"
 
     public var id: String { rawValue }
 
@@ -379,6 +380,14 @@ public final class AppActionDispatcher: AppActionPerforming {
             id: .openUsage,
             title: "View Usage",
             icon: "gauge.with.dots.needle.67percent",
+            category: .assistant,
+            isMutating: false,
+            allowsAutonomousExecution: true
+        ),
+        AppActionDefinition(
+            id: .openYouTubeOnMac,
+            title: "Open YouTube homepage on the signed-in Mac (no search)",
+            icon: "play.rectangle.fill",
             category: .assistant,
             isMutating: false,
             allowsAutonomousExecution: true
