@@ -26,6 +26,7 @@ enum RemoteCommandChatCopy {
     enum Subject {
         case homepage
         case video
+        case page
     }
 
     static func askingMessage(for subject: Subject) -> String {
@@ -34,11 +35,18 @@ enum RemoteCommandChatCopy {
             return LocalizationManager.shared.localizedString("Asking your Mac to open YouTube…")
         case .video:
             return LocalizationManager.shared.localizedString("Asking your Mac to open this video…")
+        case .page:
+            return LocalizationManager.shared.localizedString("Asking your Mac to open this page…")
         }
     }
 
-    static func invalidURLMessage() -> String {
-        LocalizationManager.shared.localizedString("That YouTube link cannot be opened on your Mac")
+    static func invalidURLMessage(for subject: Subject = .video) -> String {
+        switch subject {
+        case .homepage, .video:
+            return LocalizationManager.shared.localizedString("That YouTube link cannot be opened on your Mac")
+        case .page:
+            return LocalizationManager.shared.localizedString("That link cannot be opened on your Mac")
+        }
     }
 
     static func message(for receipt: RemoteCommandReceipt, subject: Subject = .homepage) -> String {
@@ -49,6 +57,8 @@ enum RemoteCommandChatCopy {
                 return LocalizationManager.shared.localizedString("YouTube opened on your Mac")
             case .video:
                 return LocalizationManager.shared.localizedString("This video opened on your Mac")
+            case .page:
+                return LocalizationManager.shared.localizedString("This page opened on your Mac")
             }
         case .failed, .none:
             switch subject {
@@ -56,6 +66,8 @@ enum RemoteCommandChatCopy {
                 return LocalizationManager.shared.localizedString("Your Mac could not open YouTube")
             case .video:
                 return LocalizationManager.shared.localizedString("Your Mac could not open this video")
+            case .page:
+                return LocalizationManager.shared.localizedString("Your Mac could not open this page")
             }
         case .macRequestsOff, .pending:
             return LocalizationManager.shared.localizedString(
@@ -141,6 +153,43 @@ enum RemoteCommandMapping {
         return "https://www.youtube.com/watch?v=\(videoID)"
     }
 
+    /// Returns a canonical https URL when `raw` is on an allowlisted documentation host.
+    static func canonicalDocumentationURL(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed),
+              components.scheme?.lowercased() == "https",
+              let host = components.host?.lowercased(),
+              components.user == nil,
+              components.password == nil,
+              components.port == nil || components.port == 443 else {
+            return nil
+        }
+
+        let canonicalHost: String
+        switch host {
+        case "developer.apple.com", "www.developer.apple.com":
+            canonicalHost = "developer.apple.com"
+        case "docs.swift.org":
+            canonicalHost = "docs.swift.org"
+        case "swift.org", "www.swift.org":
+            canonicalHost = "swift.org"
+        default:
+            return nil
+        }
+
+        components.scheme = "https"
+        components.host = canonicalHost
+        components.user = nil
+        components.password = nil
+        components.port = nil
+        components.fragment = nil
+        if components.path.isEmpty {
+            components.path = "/"
+        }
+        return components.string
+    }
+
     private static func isYouTubeVideoID(_ value: String) -> Bool {
         value.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil
     }
@@ -200,6 +249,72 @@ final class RemoteCommandClient {
             startTimeoutWatch()
         } catch {
             logger.error("createOpenYouTube failed: \(error.localizedDescription, privacy: .public)")
+            receipt = .failed
+            pendingSince = nil
+        }
+        isSending = false
+    }
+
+    func openYouTubeVideoOnMac(url rawURL: String) async {
+        guard !isSending, let uid = signedInUID else { return }
+        guard let url = RemoteCommandMapping.canonicalWatchURL(from: rawURL) else {
+            receipt = .failed
+            pendingSince = nil
+            return
+        }
+        isSending = true
+        receipt = .pending
+        pendingSince = Date()
+        stopListening()
+        do {
+            let result = try await Functions.functions(region: "us-central1")
+                .httpsCallable("createOpenYouTubeVideo")
+                .call(["url": url])
+            let data = result.data
+            guard let commandId = RemoteCommandMapping.commandId(from: data) else {
+                throw NSError(
+                    domain: "RemoteCommandClient",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing command id."]
+                )
+            }
+            listen(uid: uid, commandId: commandId)
+            startTimeoutWatch()
+        } catch {
+            logger.error("createOpenYouTubeVideo failed: \(error.localizedDescription, privacy: .public)")
+            receipt = .failed
+            pendingSince = nil
+        }
+        isSending = false
+    }
+
+    func openURLOnMac(url rawURL: String) async {
+        guard !isSending, let uid = signedInUID else { return }
+        guard let url = RemoteCommandMapping.canonicalDocumentationURL(from: rawURL) else {
+            receipt = .failed
+            pendingSince = nil
+            return
+        }
+        isSending = true
+        receipt = .pending
+        pendingSince = Date()
+        stopListening()
+        do {
+            let result = try await Functions.functions(region: "us-central1")
+                .httpsCallable("createOpenURL")
+                .call(["url": url])
+            let data = result.data
+            guard let commandId = RemoteCommandMapping.commandId(from: data) else {
+                throw NSError(
+                    domain: "RemoteCommandClient",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing command id."]
+                )
+            }
+            listen(uid: uid, commandId: commandId)
+            startTimeoutWatch()
+        } catch {
+            logger.error("createOpenURL failed: \(error.localizedDescription, privacy: .public)")
             receipt = .failed
             pendingSince = nil
         }

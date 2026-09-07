@@ -444,9 +444,10 @@ public final class LLMService {
                 values: ["safe", "pending"],
                 description: "`safe` only for non-mutating autonomous actions. `pending` for mutating or review-required actions."
             ),
-            "reason": .string(description: "Short reason for requesting the action.")
+            "reason": .string(description: "Short reason for requesting the action."),
+            "url": .string(description: "Required for open_youtube_video_on_mac (YouTube watch URL) or open_url_on_mac (https documentation URL on developer.apple.com, docs.swift.org, or swift.org).")
         ],
-        optionalParameters: ["reason"]
+        optionalParameters: ["reason", "url"]
     )
 
     /// Structured clarifying-question tool (feature-gated). Takes precedence
@@ -567,6 +568,7 @@ public final class LLMService {
 
                 App actions:
                 - Prefer `request_app_action(actionId, executionMode, reason)` for app actions.
+                - If the user asks to find a SwiftUI tutorial and open it on their Mac, call `request_app_action` with actionId `open_url_on_mac`, executionMode `safe`, and `url` set to a real https documentation page on developer.apple.com, docs.swift.org, or swift.org. Do not use YouTube. Do not invent a host. Never use `open_youtube_on_mac` or `open_youtube_video_on_mac` for a find or search request. Do not search on the phone.
                 - Use executionMode `safe` ONLY for these explicitly autonomous action ids:
                 \(autonomousActionLines.isEmpty ? "- none" : autonomousActionLines)
                 - Use executionMode `pending` for these review-required action ids:

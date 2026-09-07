@@ -1,6 +1,6 @@
 import Foundation
 
-/// Allowlists YouTube watch URLs before the Mac opens them.
+/// Shared allowlist for YouTube watch URLs the Mac may open.
 enum YouTubeWatchURL {
     static let homepage = "https://www.youtube.com"
 
@@ -31,11 +31,11 @@ enum YouTubeWatchURL {
             return nil
         }
 
-        guard let videoID, isVideoID(videoID) else { return nil }
+        guard let videoID, isYouTubeVideoID(videoID) else { return nil }
         return "https://www.youtube.com/watch?v=\(videoID)"
     }
 
-    private static func isVideoID(_ value: String) -> Bool {
+    private static func isYouTubeVideoID(_ value: String) -> Bool {
         value.range(of: "^[A-Za-z0-9_-]{11}$", options: .regularExpression) != nil
     }
 }

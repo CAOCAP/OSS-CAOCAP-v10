@@ -12,7 +12,7 @@ For iOS setup and service configuration, see `apps/ios/README.md`. For the macOS
 
 - `apps/ios/` and `apps/macos/` contain independent SwiftUI Xcode projects. Keep their internal `caocap/` paths intact when moving project folders.
 - `apps/android/`, `apps/windows/`, and `apps/linux/` contain independent Hello World clients (Kotlin + Jetpack Compose, C# WinUI 3, GTK 4 + Rust). They are not shared with the Apple apps and do not implement Explore, Build, or Collaborate.
-- `apps/web/` and `websites/landing/` remain a web-client placeholder and a throwaway waitlist prototype; no shared services have been selected.
+- `apps/web/` remains a web-client placeholder. `websites/landing/` contains a hosted waitlist prototype backed by Firebase; its visual stack is not a production web-app decision.
 - Use lowercase names for new organizational directories. Preserve imported filenames and Xcode resource names.
 - Keep app images, colors, and icons in the existing `Assets.xcassets` catalogs. Keep audio, localization, and other app resources in their existing resource folders. Shared brand artwork belongs in `assets/brand/`; research belongs in `docs/research/`.
 - Consult the brand asset manifest (`assets/brand/cdl-v2/MANIFEST.md`) and research index (`docs/research/README.md`) before reusing imported material. Preserve source attribution and license notices in imported files.

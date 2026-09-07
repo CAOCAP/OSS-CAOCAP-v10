@@ -41,6 +41,8 @@ public enum AppActionID: String, CaseIterable, Identifiable, Codable, Hashable {
     case changeCopilot = "change_copilot"
     case openUsage = "open_usage"
     case openYouTubeOnMac = "open_youtube_on_mac"
+    case openYouTubeVideoOnMac = "open_youtube_video_on_mac"
+    case openURLOnMac = "open_url_on_mac"
 
     public var id: String { rawValue }
 
@@ -388,6 +390,22 @@ public final class AppActionDispatcher: AppActionPerforming {
             id: .openYouTubeOnMac,
             title: "Open YouTube homepage on the signed-in Mac (no search)",
             icon: "play.rectangle.fill",
+            category: .assistant,
+            isMutating: false,
+            allowsAutonomousExecution: true
+        ),
+        AppActionDefinition(
+            id: .openYouTubeVideoOnMac,
+            title: "Open a specific YouTube watch URL on the signed-in Mac. Only https://www.youtube.com/watch?v=VIDEO_ID. Do not use this for the homepage or for finding a tutorial. Do not search on the phone.",
+            icon: "play.rectangle.fill",
+            category: .assistant,
+            isMutating: false,
+            allowsAutonomousExecution: true
+        ),
+        AppActionDefinition(
+            id: .openURLOnMac,
+            title: "Open an allowlisted https documentation URL on the signed-in Mac. Hosts: developer.apple.com, docs.swift.org, swift.org. Use this to find a SwiftUI tutorial. Do not use YouTube. Do not open other hosts. Do not search on the phone.",
+            icon: "safari",
             category: .assistant,
             isMutating: false,
             allowsAutonomousExecution: true

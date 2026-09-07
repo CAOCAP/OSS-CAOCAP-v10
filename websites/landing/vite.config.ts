@@ -7,7 +7,6 @@ import { defineConfig } from 'vite'
 const root = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = path.resolve(root, '../..')
 
-// PROTOTYPE — throwaway waitlist UI. Three variants on /?variant=
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -18,6 +17,12 @@ export default defineConfig({
   server: {
     fs: {
       allow: [repoRoot],
+    },
+    proxy: {
+      '/joinWaitlist': {
+        target: 'https://us-central1-caocap-ficruty.cloudfunctions.net',
+        changeOrigin: true,
+      },
     },
   },
 })

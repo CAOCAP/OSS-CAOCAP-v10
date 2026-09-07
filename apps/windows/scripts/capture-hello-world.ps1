@@ -326,7 +326,7 @@ if (-not $chosen) {
 }
 
 if ($hwnd -eq [IntPtr]::Zero) {
-    Write-Warning "Primary screenshot is not a dedicated window capture; the CAOCAP HWND was never found."
+    throw "CAOCAP did not open a visible window. Desktop captures are diagnostic only."
 }
 
 Write-Host "Captured $chosenKind"

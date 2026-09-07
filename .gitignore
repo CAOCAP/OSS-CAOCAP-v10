@@ -25,6 +25,10 @@ DerivedData/
 timeline.xctimeline
 playground.xcworkspace
 
+# Android local configuration and Gradle cache
+/apps/android/caocap/.gradle/
+/apps/android/caocap/local.properties
+
 # Firebase
 GoogleService-Info.plist
 google-services.json
@@ -34,6 +38,7 @@ firebase/functions/lib/
 # Android
 local.properties
 .gradle/
+.kotlin/
 *.iml
 .idea/
 *.apk
@@ -51,3 +56,5 @@ target/
 # Flatpak
 .flatpak-builder/
 build-dir/
+firebase/hosting-public/
+/firebase/.firebase/

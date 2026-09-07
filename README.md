@@ -19,7 +19,7 @@ CAOCAP is transitioning to a collaborative AI agent platform. Agent discovery, b
 | Android | Kotlin + Jetpack Compose Hello World shell; Explore, Build, and Collaborate are not implemented |
 | Windows | C# WinUI 3 Hello World shell; Explore, Build, Collaborate, and computer use are not implemented |
 | Linux | GTK 4 + Rust (gtk4-rs / libadwaita) Hello World shell; Explore, Build, Collaborate, and computer use are not implemented |
-| Landing page | Throwaway waitlist UI prototype in [`websites/landing/`](websites/landing/); not a shipped site |
+| Landing page | Hosted waitlist in [`websites/landing/`](websites/landing/); emails stored in Firestore via `joinWaitlist`. Vite prototype, not the planned web app |
 | Web application | Directory scaffold only |
 
 ## Repository structure
@@ -34,7 +34,7 @@ CAOCAP is transitioning to a collaborative AI agent platform. Agent discovery, b
 │   ├── linux/               # Linux GTK 4 + Rust Hello World shell
 │   └── web/                 # Planned web client
 ├── websites/
-│   └── landing/             # Throwaway waitlist UI prototype; not a shipped site
+│   └── landing/             # Hosted waitlist (Vite prototype on Firebase Hosting)
 ├── assets/
 │   └── brand/               # Imported artwork and icon variants
 ├── docs/
@@ -87,9 +87,9 @@ This does not build on macOS. GitHub Actions on `windows-latest` compiles the De
 
 You should see a **CAOCAP** window that shows Hello World. The floating Agent and computer use are not implemented.
 
-### Landing page prototype
+### Landing waitlist
 
-A local waitlist UI prototype lives in [`websites/landing/`](websites/landing/). Run `npm install && npm run dev` there. It is not a production site and does not collect email.
+The waitlist page lives in [`websites/landing/`](websites/landing/). Run `npm install && npm run dev` there. Submitting an address calls `joinWaitlist` and stores it in Firestore. Deploy with `npm run build` in that folder, then `firebase deploy --only functions,hosting` from [`firebase/`](firebase/).
 
 ## Technology
 
@@ -99,7 +99,7 @@ Technology currently present in the repository:
 - Kotlin and Jetpack Compose (Android Hello World shell)
 - C# WinUI 3 / Windows App SDK (Windows Hello World shell)
 - Rust gtk4-rs and libadwaita (Linux Hello World shell)
-- A throwaway Vite + React + Tailwind waitlist prototype under `websites/landing/` (not a production stack decision)
+- A Vite + React + Tailwind waitlist prototype under `websites/landing/`, hosted on Firebase (not a production stack decision for the web app)
 
 Shared services and the web client stack have not been selected. These Hello World shells do not implement Explore, Build, or Collaborate.
 

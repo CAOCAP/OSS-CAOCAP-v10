@@ -4,7 +4,7 @@ import Foundation
 import Observation
 import OSLog
 
-/// Listens for allowlisted openYouTube and openYouTubeVideo commands and opens them in the default browser.
+/// Listens for allowlisted openYouTube commands and opens them in the default browser.
 /// Off until the user enables requests from iPhone.
 @Observable
 @MainActor
@@ -108,15 +108,7 @@ final class RemoteCommandRelay {
         let data = document.data()
         let type = data["type"] as? String
         let urlString = data["url"] as? String
-        let urlToOpen: String?
-        if type == "openYouTube", urlString == YouTubeWatchURL.homepage {
-            urlToOpen = YouTubeWatchURL.homepage
-        } else if type == "openYouTubeVideo" {
-            urlToOpen = YouTubeWatchURL.canonicalWatchURL(from: urlString)
-        } else {
-            urlToOpen = nil
-        }
-        guard let urlToOpen else {
+        guard let url = allowedOpenURL(type: type, urlString: urlString) else {
             claimingIDs.remove(id)
             logger.warning("Ignored command \(id, privacy: .public) with disallowed type or URL.")
             return
@@ -124,7 +116,8 @@ final class RemoteCommandRelay {
 
         do {
             try await claim(document)
-            let opened = openURL(urlToOpen)
+            logger.info("Opening allowlisted URL \(url.absoluteString, privacy: .public)")
+            let opened = NSWorkspace.shared.open(url)
             if opened {
                 try await complete(document.reference, status: "opened", timestampField: "openedAt")
             } else {
@@ -135,6 +128,21 @@ final class RemoteCommandRelay {
             logger.error("Command \(id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             claimingIDs.remove(id)
         }
+    }
+
+    private func allowedOpenURL(type: String?, urlString: String?) -> URL? {
+        if type == "openYouTube", urlString == YouTubeWatchURL.homepage {
+            return URL(string: YouTubeWatchURL.homepage)
+        }
+        if type == "openYouTubeVideo",
+           let canonical = YouTubeWatchURL.canonicalWatchURL(from: urlString) {
+            return URL(string: canonical)
+        }
+        if type == "openURL",
+           let canonical = AllowlistedOpenURL.canonicalDocumentationURL(from: urlString) {
+            return URL(string: canonical)
+        }
+        return nil
     }
 
     private func claim(_ document: QueryDocumentSnapshot) async throws {
@@ -172,10 +180,5 @@ final class RemoteCommandRelay {
             "status": status,
             timestampField: FieldValue.serverTimestamp()
         ])
-    }
-
-    private func openURL(_ string: String) -> Bool {
-        guard let url = URL(string: string) else { return false }
-        return NSWorkspace.shared.open(url)
     }
 }

@@ -20,6 +20,6 @@ Do not return to:
 - Dark editorial splash with no product
 - Three layout-switcher variants
 
-## Still throwaway
+## Hosted waitlist
 
-Email is in-memory only. Vite + React + Tailwind is a prototype vehicle, not a production stack decision.
+Emails are stored in Firestore through `joinWaitlist`. Keep the submission, pending, error, and remembered-success behavior when changing the design. Vite + React + Tailwind remains a prototype vehicle, not a production web-app stack decision.
