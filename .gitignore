@@ -27,6 +27,7 @@ playground.xcworkspace
 
 # Firebase
 GoogleService-Info.plist
+google-services.json
 firebase/functions/node_modules/
 firebase/functions/lib/
 
@@ -35,6 +36,8 @@ local.properties
 .gradle/
 *.iml
 .idea/
+*.apk
+*.aab
 
 # Windows
 bin/
@@ -47,3 +50,4 @@ target/
 
 # Flatpak
 .flatpak-builder/
+build-dir/
