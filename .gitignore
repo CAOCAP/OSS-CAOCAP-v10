@@ -25,8 +25,13 @@ DerivedData/
 timeline.xctimeline
 playground.xcworkspace
 
+# Android local configuration and Gradle cache
+/apps/android/caocap/.gradle/
+/apps/android/caocap/local.properties
+
 # Firebase
 GoogleService-Info.plist
 firebase/functions/node_modules/
 firebase/functions/lib/
 firebase/hosting-public/
+/firebase/.firebase/
