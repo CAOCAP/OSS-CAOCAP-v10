@@ -5,6 +5,7 @@ import SwiftUI
 struct TimelineItemView: View {
     let item: CoCaptainTimelineItem
     let viewModel: CoCaptainViewModel
+    var isContinuation = false
     @Environment(OnboardingCoordinator.self) private var onboarding: OnboardingCoordinator?
 
     private var isOnboardingReviewAnchorActive: Bool {
@@ -58,7 +59,8 @@ struct TimelineItemView: View {
             onEdit: editAction(for: bubble),
             onResend: resendAction(for: bubble),
             onFeedback: feedbackAction(for: bubble),
-            showsActions: !viewModel.isStreamingAssistantMessage(id: item.id)
+            showsActions: !viewModel.isStreamingAssistantMessage(id: item.id),
+            isContinuation: isContinuation
         )
     }
 
@@ -279,9 +281,9 @@ struct ProductCTAView: View {
                 HStack(alignment: .top, spacing: CoCaptainChatStyle.smallSpacing) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color.blue)
+                        .foregroundStyle(Color.accentColor)
                         .frame(width: 28, height: 28)
-                        .background(Color.blue.opacity(0.12))
+                        .background(Color.accentColor.opacity(0.12))
                         .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: 4) {

@@ -21,9 +21,15 @@ enum CoCaptainChatStyle {
     static let subtleFill = Color.primary.opacity(0.045)
     static let raisedFill = Color.primary.opacity(0.065)
     static let subtleStroke = Color.primary.opacity(0.08)
-    static let userMessageFill = Color.accentColor.opacity(0.14)
+    static let userMessageFill = Color.accentColor.opacity(0.16)
+    static let userMessageStroke = Color.accentColor.opacity(0.22)
+    static let mentionTint = Color.accentColor
+    static let codeFill = Color.primary.opacity(0.07)
     static let pending = Color.orange
     static let success = Color.green
+
+    /// Vertical gap between consecutive messages from the same speaker.
+    static let groupedMessageSpacing: CGFloat = 6
 }
 
 private struct CoCaptainCardSurface: ViewModifier {

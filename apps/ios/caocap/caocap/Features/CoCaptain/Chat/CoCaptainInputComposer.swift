@@ -545,11 +545,14 @@ struct CoCaptainInputComposer: View {
                         )
                     }
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.blue)
+                    .foregroundStyle(CoCaptainChatStyle.mentionTint)
                     .padding(.leading, 9)
                     .padding(.trailing, 3)
                     .frame(minHeight: 44)
-                    .background(Color.blue.opacity(0.1), in: Capsule())
+                    .background(
+                        CoCaptainChatStyle.mentionTint.opacity(0.1),
+                        in: Capsule()
+                    )
                 }
             }
         }
@@ -855,7 +858,7 @@ struct CoCaptainInputComposer: View {
             return .red.opacity(0.15)
         }
         if isThinking || isInputValid {
-            return .blue
+            return .accentColor
         }
         return Color.primary.opacity(0.08)
     }

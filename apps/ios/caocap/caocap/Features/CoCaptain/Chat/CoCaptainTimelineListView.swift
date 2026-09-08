@@ -23,7 +23,7 @@ struct CoCaptainTimelineListView: View {
                 ScrollView {
                     LazyVStack(
                         alignment: .leading,
-                        spacing: CoCaptainChatStyle.sectionSpacing
+                        spacing: CoCaptainChatStyle.groupedMessageSpacing
                     ) {
                         if viewModel.isConversationArchiveLoading {
                             HStack(spacing: 10) {
@@ -47,14 +47,25 @@ struct CoCaptainTimelineListView: View {
                                 }
                             )
                         } else {
-                            ForEach(viewModel.items) { item in
+                            ForEach(
+                                Array(viewModel.items.enumerated()),
+                                id: \.element.id
+                            ) { index, item in
                                 if !item.isEmptyAssistantMessage {
-                                    if let index = viewModel.items.firstIndex(where: { $0.id == item.id }),
-                                       shouldShowDaySeparator(at: index) {
+                                    if shouldShowDaySeparator(at: index) {
                                         daySeparator(for: item.createdAt)
+                                            .padding(.top, turnSpacing)
                                     }
-                                    TimelineItemView(item: item, viewModel: viewModel)
-                                        .id(item.id)
+                                    TimelineItemView(
+                                        item: item,
+                                        viewModel: viewModel,
+                                        isContinuation: isContinuation(at: index)
+                                    )
+                                    .padding(
+                                        .top,
+                                        isContinuation(at: index) ? 0 : turnSpacing
+                                    )
+                                    .id(item.id)
                                 }
                             }
                         }
@@ -68,6 +79,7 @@ struct CoCaptainTimelineListView: View {
 
                                 Spacer()
                             }
+                            .padding(.top, turnSpacing)
                             .id("thinking_indicator")
                         }
 
@@ -195,6 +207,23 @@ struct CoCaptainTimelineListView: View {
         !viewModel.hasUserMessages
             && viewModel.items.isEmpty
             && onboarding?.currentStep == nil
+    }
+
+    /// Extra leading gap that restores the full section rhythm between turns,
+    /// on top of the stack's tighter grouped spacing.
+    private var turnSpacing: CGFloat {
+        CoCaptainChatStyle.sectionSpacing - CoCaptainChatStyle.groupedMessageSpacing
+    }
+
+    /// True when this item continues the previous speaker's turn, so the list can
+    /// drop the repeated avatar and tighten the gap.
+    private func isContinuation(at index: Int) -> Bool {
+        guard index > 0, !shouldShowDaySeparator(at: index) else { return false }
+        guard case .message(let current) = viewModel.items[index].content,
+              case .message(let previous) = viewModel.items[index - 1].content else {
+            return false
+        }
+        return current.isUser == previous.isUser
     }
 
     private func shouldShowDaySeparator(at index: Int) -> Bool {

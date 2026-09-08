@@ -11,7 +11,7 @@ struct ThinkingIndicator: View {
         HStack(spacing: 4) {
             ForEach(0..<3) { index in
                 Circle()
-                    .fill(Color.blue.opacity(0.5))
+                    .fill(Color.accentColor.opacity(0.55))
                     .frame(width: 6, height: 6)
                     .scaleEffect(dotScale)
                     .animation(
@@ -44,6 +44,9 @@ struct ChatBubbleView: View {
     var onResend: (() -> Void)? = nil
     var onFeedback: ((CoCaptainMessageFeedback) -> Void)? = nil
     var showsActions = true
+    /// True when the previous timeline item came from the same speaker, which
+    /// suppresses the repeated avatar so a multi-message reply reads as one turn.
+    var isContinuation = false
 
     @State private var copied = false
     @State private var previewAttachment: CoCaptainAttachment?
@@ -53,6 +56,8 @@ struct ChatBubbleView: View {
         HStack(alignment: .top, spacing: CoCaptainChatStyle.smallSpacing) {
             if message.isUser {
                 Spacer(minLength: 36)
+            } else if isContinuation {
+                Color.clear.frame(width: 28, height: 1)
             } else {
                 CopilotAvatarView(size: 28)
                     .accessibilityHidden(true)
@@ -179,7 +184,7 @@ struct ChatBubbleView: View {
                         cornerRadius: CoCaptainChatStyle.messageCornerRadius,
                         style: .continuous
                     )
-                    .stroke(Color.accentColor.opacity(0.12), lineWidth: 1)
+                    .stroke(CoCaptainChatStyle.userMessageStroke, lineWidth: 1)
                 }
                 .foregroundStyle(.primary)
         } else {
@@ -226,11 +231,17 @@ struct ChatBubbleView: View {
                 ForEach(message.mentions) { mention in
                     Label(mention.displayTitle, systemImage: "scope")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(message.isUser ? Color.blue : Color.secondary)
+                        .foregroundStyle(
+                            message.isUser
+                                ? CoCaptainChatStyle.mentionTint
+                                : Color.secondary
+                        )
                         .padding(.horizontal, 9)
                         .padding(.vertical, 5)
                         .background(
-                            (message.isUser ? Color.blue : Color.primary).opacity(0.08),
+                            (message.isUser
+                                ? CoCaptainChatStyle.mentionTint
+                                : Color.primary).opacity(0.1),
                             in: Capsule()
                         )
                 }
@@ -401,8 +412,8 @@ struct ChatBubbleText: View {
 
         for run in attributed.runs {
             if let intent = run.inlinePresentationIntent, intent.contains(.code) {
-                attributed[run.range].foregroundColor = .orange
-                attributed[run.range].backgroundColor = Color.primary.opacity(0.05)
+                attributed[run.range].font = .body.monospaced()
+                attributed[run.range].backgroundColor = CoCaptainChatStyle.codeFill
             }
         }
 
