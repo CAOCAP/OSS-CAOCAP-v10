@@ -11,8 +11,8 @@
 		4C89E7B63034180000976526 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7B73034180000976527 /* FirebaseAuth */; };
 		4C89E7B83034180000976528 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7B93034180000976529 /* FirebaseFirestore */; };
 		4C89E7BA3034180000976530 /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7BB3034180000976531 /* FirebaseAILogic */; };
-		5DCA00000000000000000030 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 5DCA00000000000000000031 /* FirebaseFunctions */; };
 		5DCA00000000000000000010 /* ComputerUseHelper.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 5DCA00000000000000000001 /* ComputerUseHelper.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5DCA00000000000000000030 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 5DCA00000000000000000031 /* FirebaseFunctions */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */

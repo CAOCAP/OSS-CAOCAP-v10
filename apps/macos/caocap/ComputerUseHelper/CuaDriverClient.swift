@@ -158,28 +158,42 @@ final class CuaDriverClient {
         }
     }
 
-    /// Resolves the window to act on. Prefers whatever on-screen window is currently frontmost
-    /// (highest z_index) over anything scoped to `bundleIdentifier`'s own pid: a native Open/Save
-    /// panel from a sandboxed app is hosted out-of-process and belongs to a system panel service,
-    /// not the app itself (per `describe get_window_state`'s `window_owner_pid_mismatch` note), so
-    /// strictly following the target app's pid would miss it. Falls back to a bundle-scoped lookup
-    /// only if no window list is available at all.
+    /// Resolves the window to act on, restricted to the target app plus the system panel service.
+    ///
+    /// A native Open/Save panel from a sandboxed app is hosted out-of-process and belongs to
+    /// `com.apple.appkit.xpc.openAndSavePanelService`, not the app itself (per `describe
+    /// get_window_state`'s `window_owner_pid_mismatch` note), so a target-pid-only lookup would
+    /// miss the save sheet this task depends on. Picking the globally frontmost window instead
+    /// would hand the model any app that happens to be in front — including CAOCAP's own chat —
+    /// so the candidate set is the union of the two, ranked by z_index.
+    ///
+    /// Residual limitation: the panel service is shared by every sandboxed app, so a save panel
+    /// belonging to an unrelated app could still win if it is frontmost at that moment.
     private func resolveTarget(bundleIdentifier: String) throws -> (pid: Int, windowID: Int) {
-        let windowsData = try callTool("list_windows", argsJSON: ["on_screen_only": true])
-        if let frontmost = Self.frontmostWindow(in: windowsData) {
-            return frontmost
+        let appsData = try callTool("list_apps", argsJSON: [:])
+        guard let targetPID = Self.firstRunningPID(forBundleIdentifier: bundleIdentifier, in: appsData) else {
+            throw CuaDriverClientError.noMatchingWindow
         }
 
-        let appsData = try callTool("list_apps", argsJSON: [:])
-        guard let pid = Self.firstRunningPID(forBundleIdentifier: bundleIdentifier, in: appsData) else {
+        var candidatePIDs: Set<Int> = [targetPID]
+        for host in Self.panelHostBundleIdentifiers {
+            if let hostPID = Self.firstRunningPID(forBundleIdentifier: host, in: appsData) {
+                candidatePIDs.insert(hostPID)
+            }
+        }
+
+        let windowsData = try callTool("list_windows", argsJSON: ["on_screen_only": true])
+        guard let window = Self.frontmostWindow(in: windowsData, limitedTo: candidatePIDs) else {
             throw CuaDriverClientError.noMatchingWindow
         }
-        let windowsForPid = try callTool("list_windows", argsJSON: ["pid": pid, "on_screen_only": true])
-        guard let windowID = Self.firstWindowID(in: windowsForPid) else {
-            throw CuaDriverClientError.noMatchingWindow
-        }
-        return (pid, windowID)
+        return window
     }
+
+    /// Out-of-process hosts for the system Open/Save panels a sandboxed target app presents.
+    private static let panelHostBundleIdentifiers = [
+        "com.apple.appkit.xpc.openAndSavePanelService",
+        "com.apple.ViewBridgeAuxiliary",
+    ]
 
     private func callTool(_ name: String, argsJSON: [String: Any]) throws -> Data {
         guard let binaryPath = Self.resolvedBinaryPath() else {
@@ -188,19 +202,39 @@ final class CuaDriverClient {
         let argsData = try JSONSerialization.data(withJSONObject: argsJSON)
         let argsString = String(data: argsData, encoding: .utf8) ?? "{}"
 
+        let errorPath = NSTemporaryDirectory() + "cua-stderr-\(UUID().uuidString).log"
+        FileManager.default.createFile(atPath: errorPath, contents: nil)
+        defer { try? FileManager.default.removeItem(atPath: errorPath) }
+        guard let errorHandle = FileHandle(forWritingAtPath: errorPath) else {
+            throw CuaDriverClientError.unexpectedResponse
+        }
+        defer { try? errorHandle.close() }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = ["call", name, argsString]
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = Pipe()
+        // A pipe nobody drains deadlocks the child once it fills (~64KB), and cua-driver's
+        // window/app listings are easily that large on a busy desktop. stderr goes to a file
+        // (no buffer limit, and readable afterwards for a real error message); stdout is read to
+        // EOF *before* waitUntilExit so the child is never blocked on a full buffer.
+        process.standardError = errorHandle
         try process.run()
+
+        let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
-            throw CuaDriverClientError.toolCallFailed(name: name, exitCode: process.terminationStatus)
+            let message = (try? String(contentsOfFile: errorPath, encoding: .utf8))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            throw CuaDriverClientError.toolCallFailed(
+                name: name,
+                exitCode: process.terminationStatus,
+                message: (message?.isEmpty == false) ? message : nil
+            )
         }
-        return outputPipe.fileHandleForReading.readDataToEndOfFile()
+        return output
     }
 
     private static func resolvedBinaryPath() -> String? {
@@ -243,24 +277,22 @@ final class CuaDriverClient {
         return pid
     }
 
-    private static func firstWindowID(in data: Data) -> Int? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
-        let windows = (json as? [[String: Any]]) ?? (json as? [String: Any])?["windows"] as? [[String: Any]] ?? []
-        return windows.first?["window_id"] as? Int
-    }
-
     /// Per `describe list_windows`: "take the maximum integer z_index; if every value is null,
     /// use an explicit fallback instead of relying on array order" — falls back to the first
-    /// listed window when no entry has a usable z_index.
-    private static func frontmostWindow(in data: Data) -> (pid: Int, windowID: Int)? {
+    /// candidate window when no entry has a usable z_index.
+    private static func frontmostWindow(in data: Data, limitedTo pids: Set<Int>) -> (pid: Int, windowID: Int)? {
         guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
         let windows = (json as? [[String: Any]]) ?? (json as? [String: Any])?["windows"] as? [[String: Any]] ?? []
-        guard !windows.isEmpty else { return nil }
+        let candidates = windows.filter { window in
+            guard let pid = window["pid"] as? Int else { return false }
+            return pids.contains(pid) && window["window_id"] is Int
+        }
+        guard !candidates.isEmpty else { return nil }
 
-        let ranked = windows.max { lhs, rhs in
+        let ranked = candidates.max { lhs, rhs in
             (lhs["z_index"] as? Int ?? Int.min) < (rhs["z_index"] as? Int ?? Int.min)
         }
-        let chosen = ranked?["z_index"] != nil ? ranked : windows.first
+        let chosen = ranked?["z_index"] != nil ? ranked : candidates.first
 
         guard let pid = chosen?["pid"] as? Int, let windowID = chosen?["window_id"] as? Int else {
             return nil
@@ -269,10 +301,28 @@ final class CuaDriverClient {
     }
 }
 
-enum CuaDriverClientError: Error {
+enum CuaDriverClientError: LocalizedError {
     case notInstalled
     case noMatchingWindow
     case unexpectedResponse
     case unsupportedAction(String)
-    case toolCallFailed(name: String, exitCode: Int32)
+    case toolCallFailed(name: String, exitCode: Int32, message: String?)
+
+    var errorDescription: String? {
+        switch self {
+        case .notInstalled:
+            return "cua-driver isn't installed."
+        case .noMatchingWindow:
+            return "No on-screen window for the target app."
+        case .unexpectedResponse:
+            return "cua-driver returned something unexpected."
+        case .unsupportedAction(let type):
+            return "Unsupported action \"\(type)\"."
+        case .toolCallFailed(let name, let exitCode, let message):
+            if let message {
+                return "cua-driver \(name) failed (\(exitCode)): \(message)"
+            }
+            return "cua-driver \(name) failed with exit code \(exitCode)."
+        }
+    }
 }

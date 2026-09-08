@@ -43,8 +43,11 @@ final class ComputerUseAgentService {
         }
     }
 
+    /// Cancelling matters as well as setting the flag: a step can sit inside a 60s model call, and
+    /// the loop would otherwise keep going until that call returns on its own.
     func stop() {
         shouldStop = true
+        runTask?.cancel()
     }
 
     private func run(
@@ -65,7 +68,7 @@ final class ComputerUseAgentService {
         do {
             try await helperClient.launchApp(bundleIdentifier: Self.targetBundleIdentifier)
         } catch {
-            onStateChange(.failed(message: "Couldn't open TextEdit: \(error.localizedDescription)"))
+            onStateChange(stopAware(.failed(message: "Couldn't open TextEdit: \(error.localizedDescription)")))
             return
         }
 
@@ -87,7 +90,7 @@ final class ComputerUseAgentService {
             do {
                 screenshot = try await helperClient.captureScreenshot(bundleIdentifier: Self.targetBundleIdentifier)
             } catch {
-                onStateChange(.failed(message: "Couldn't see TextEdit: \(error.localizedDescription)"))
+                onStateChange(stopAware(.failed(message: "Couldn't see TextEdit: \(error.localizedDescription)")))
                 return
             }
 
@@ -100,7 +103,7 @@ final class ComputerUseAgentService {
                     previousCallId: previousCallId
                 )
             } catch {
-                onStateChange(.failed(message: "The model couldn't be reached: \(error.localizedDescription)"))
+                onStateChange(stopAware(.failed(message: "The model couldn't be reached: \(error.localizedDescription)")))
                 return
             }
             previousResponseId = result.responseId
@@ -131,7 +134,7 @@ final class ComputerUseAgentService {
             do {
                 try await helperClient.performAction(action, bundleIdentifier: Self.targetBundleIdentifier)
             } catch {
-                onStateChange(.failed(message: "An action failed: \(error.localizedDescription)"))
+                onStateChange(stopAware(.failed(message: "An action failed: \(error.localizedDescription)")))
                 return
             }
 
@@ -140,6 +143,12 @@ final class ComputerUseAgentService {
         }
 
         onStateChange(.failed(message: "Reached the step limit without finishing."))
+    }
+
+    /// Stopping cancels the run task, so an in-flight call can surface a cancellation error. That
+    /// is the user's Stop landing, not a failure — report it as such.
+    private func stopAware(_ failure: ComputerUseTaskState) -> ComputerUseTaskState {
+        shouldStop ? .stopped : failure
     }
 
     private static func describe(_ action: [String: Any]) -> String {

@@ -112,7 +112,18 @@ final class ComputerUseHelperClient {
     }
 }
 
-enum ComputerUseHelperClientError: Error {
+enum ComputerUseHelperClientError: LocalizedError {
     case invalidProxy
     case driverError(String)
+
+    /// Without `LocalizedError`, `localizedDescription` degrades to "the operation couldn't be
+    /// completed (… error 1.)" and throws away the message the helper actually sent back.
+    var errorDescription: String? {
+        switch self {
+        case .invalidProxy:
+            return "The computer-use helper isn't reachable. Try quitting and reopening CAOCAP."
+        case .driverError(let message):
+            return message
+        }
+    }
 }

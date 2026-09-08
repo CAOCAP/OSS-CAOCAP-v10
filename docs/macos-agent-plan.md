@@ -122,7 +122,7 @@ See [macOS setup and current behavior](../apps/macos/README.md). The initial cha
 
 ## Phase 3 — Complete one computer-use task end to end
 
-**Status:** In progress (Sub-phases A and B done and build-verified; see `apps/macos/caocap/ComputerUseHelper/`)
+**Status:** In progress — chat integration built and build-verified; no live end-to-end run yet
 **Depends on:** Phase 2
 
 **Outcome:** The user gives CoCaptain a request, the Agent operates a chosen application, and the user can inspect the completed work.
@@ -134,6 +134,8 @@ See [macOS setup and current behavior](../apps/macos/README.md). The initial cha
 - Computer-use runtime: OpenAI's `computer-use-preview` model (Responses API) for reasoning, driving `cua-driver` (github.com/trycua/cua, MIT) as the local execution layer for screenshots/clicks/keystrokes on real apps.
 - Sandbox/distribution: the main app stays sandboxed; a new unsandboxed `ComputerUseHelper` XPC service (own bundle ID, own entitlements) holds Accessibility/Screen Recording permissions and runs `cua-driver`, talking to the sandboxed app over `NSXPCConnection`. This requires Developer ID / direct distribution rather than Mac App Store.
 - cua-driver is currently expected to already be installed by the user (`curl -fsSL https://cua.ai/driver/install.sh | sh`, run by the user in Terminal, never by CAOCAP itself) — not bundled with the app.
+- **How a prompt becomes a computer-use run: agent modes, mirroring iOS.** The composer carries an Ask / Plan / Agent picker, the same contract as iOS's `CoCaptainChatMode` (`apps/ios/.../AgentContract/CoCaptainAgentModels.swift`): Ask and Plan are prose-only, Agent is the mode that acts. On macOS "acting" means driving a real app through computer-use rather than editing a canvas. The mode is explicit and persisted (`caocap.agentMode`), so the Agent never takes the desktop on its own guess about intent. A finished plan offers "Run this on my Mac", which switches to Agent mode and runs the plan text as the task.
+- **Working folder:** chosen once via `NSOpenPanel` and kept as an app-scoped security-scoped bookmark (`ComputerUseWorkspace`), rather than re-prompting on every run. Requires the `com.apple.security.files.bookmarks.app-scope` entitlement.
 
 ### Known follow-up (not blocking this phase)
 
@@ -141,19 +143,26 @@ See [macOS setup and current behavior](../apps/macos/README.md). The initial cha
 
 ### Decisions still open
 
-- Define how the user sees current activity, stops execution, handles requests for input, and takes back control. (In progress — Sub-phase D.)
 - Agree how hiding chat, hiding the Agent, or quitting affects an active task. (Not yet addressed.)
+- Whether the Agent should ever ask a mid-run question. `ComputerUseTaskState.awaitingUserInput` exists and renders, but nothing produces it yet.
 
 ### Work
 
-- [ ] Connect the chosen computer-use capability to the Agent's request loop.
-- [ ] Let the Agent observe the target app, choose an action, perform it, and observe the result before continuing.
-- [ ] Show concise activity in chat, including when the Agent needs user input.
-- [ ] Provide a visible Stop control that prevents further actions and leaves the current outcome understandable.
-- [ ] Handle missing permissions, an unavailable target app, interruption, and execution failure without claiming success.
-- [ ] Return an inspectable result, such as the actual saved file, and distinguish completed work from partial work.
-- [ ] Verify the result from the target application or resulting artifact rather than relying on the Agent's final message.
+- [x] Connect the chosen computer-use capability to the Agent's request loop. (Agent mode in the composer; no longer debug-menu-only.)
+- [x] Let the Agent observe the target app, choose an action, perform it, and observe the result before continuing.
+- [x] Show concise activity in chat — a per-turn activity card listing the actions actually performed.
+- [x] Provide a visible Stop control that prevents further actions and leaves the current outcome understandable.
+- [x] Handle missing permissions, an unavailable target app, interruption, and execution failure without claiming success.
+- [x] Return an inspectable result — the saved file, revealed in Finder — and distinguish completed from stopped/partial work.
+- [x] Verify the result from the resulting artifact rather than relying on the Agent's final message.
 - [ ] Document the supported task and the actual operating requirements.
+- [ ] Live end-to-end run reviewed by the user.
+
+### Defects fixed while wiring this up
+
+- `CuaDriverClient.callTool` waited on the child process before draining its pipes, and never drained stderr at all — any cua-driver output past the ~64KB pipe buffer would deadlock the helper. stdout is now read to EOF before `waitUntilExit`, stderr goes to a file and is surfaced in the thrown error.
+- `CuaDriverClient.resolveTarget` picked the globally frontmost on-screen window, so the model could be shown — and could click into — whatever app happened to be in front, including CAOCAP's own chat. Candidates are now restricted to the target app plus the system Open/Save panel host.
+- `ComputerUseAgentService.stop()` only set a flag, so a run sitting in a 60s model call kept going. It now cancels the run task, and a cancellation surfacing as an error is reported as Stopped rather than Failed.
 
 ### Completion checks
 

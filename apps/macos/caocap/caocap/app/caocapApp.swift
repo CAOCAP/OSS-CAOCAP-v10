@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let remoteCommandRelay = RemoteCommandRelay()
     let computerUseHelperClient = ComputerUseHelperClient()
     let openAIComputerUseClient = OpenAIComputerUseClient()
+    let computerUseWorkspace = ComputerUseWorkspace()
     lazy var computerUseInstallGate = ComputerUseInstallGate(helperClient: computerUseHelperClient)
     lazy var computerUseAgentService = ComputerUseAgentService(
         helperClient: computerUseHelperClient,
@@ -29,6 +30,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         authenticationManager.start()
         devicePresence.attach(authManager: authenticationManager)
         remoteCommandRelay.attach(authManager: authenticationManager)
+        companion.attachComputerUse(ComputerUseContext(
+            agentService: computerUseAgentService,
+            installGate: computerUseInstallGate,
+            workspace: computerUseWorkspace
+        ))
         companion.install()
     }
 

@@ -20,6 +20,12 @@ final class CompanionController {
         persona == .cocaptain ? cocaptainChat : costarChat
     }
 
+    /// Both personas share one desktop, so they share one computer-use context.
+    func attachComputerUse(_ context: ComputerUseContext) {
+        cocaptainChat.computerUse = context
+        costarChat.computerUse = context
+    }
+
     @ObservationIgnored
     private var panel: CompanionPanel?
     @ObservationIgnored

@@ -115,7 +115,9 @@ private struct AgentConversationView: View {
                             messageRow(for: message)
                         }
 
-                        if case .failed(let errorMsg) = session.generationState {
+                        // An Agent-mode failure is already reported inside its own activity card.
+                        if case .failed(let errorMsg) = session.generationState,
+                           session.messages.last?.activity == nil {
                             errorCard(message: errorMsg)
                         }
 
@@ -167,7 +169,9 @@ private struct AgentConversationView: View {
                     .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    if message.text.isEmpty && message.isStreaming {
+                    if let activity = message.activity {
+                        activityCard(activity)
+                    } else if message.text.isEmpty && message.isStreaming {
                         HStack(spacing: 6) {
                             ProgressView()
                                 .controlSize(.small)
@@ -186,6 +190,16 @@ private struct AgentConversationView: View {
                             ProgressView()
                                 .controlSize(.mini)
                                 .padding(.top, 2)
+                        } else if message.mode == .plan && !message.text.isEmpty {
+                            Button {
+                                session.runPlanInAgentMode(message.text)
+                            } label: {
+                                Label("Run this on my Mac", systemImage: "play.fill")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(session.isStreaming)
+                            .padding(.top, 2)
                         }
                     }
                 }
@@ -200,6 +214,77 @@ private struct AgentConversationView: View {
             }
             .padding(.trailing, 28)
             .id(message.id)
+        }
+    }
+
+    /// Shows only what actually happened: steps the helper really performed, and an outcome line
+    /// that distinguishes finished work from stopped or partial work.
+    @ViewBuilder
+    private func activityCard(_ activity: AgentRunActivity) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                if case .running = activity.state {
+                    ProgressView().controlSize(.mini)
+                }
+                Text(activityHeadline(activity.state))
+                    .font(.system(size: 12, weight: .semibold))
+            }
+
+            if !activity.steps.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(activity.steps) { step in
+                        Text("\(step.index). \(step.summary)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            switch activity.state {
+            case .completed(let resultPath):
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: resultPath)])
+                } label: {
+                    Label(URL(fileURLWithPath: resultPath).lastPathComponent, systemImage: "doc.text")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.borderless)
+                .help("Reveal in Finder")
+            case .failed(let message):
+                Text(message)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            case .stopped:
+                Text(activity.steps.isEmpty
+                    ? "Nothing was changed."
+                    : "Stopped after \(activity.steps.count) action\(activity.steps.count == 1 ? "" : "s"); anything already done is still there.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            case .awaitingPermission:
+                Text("CAOCAP needs the computer-use helper set up before it can act.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            case .awaitingFolderSelection:
+                Text("Choose a folder for the Agent to work in, then try again.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            case .running, .idle, .awaitingUserInput:
+                EmptyView()
+            }
+        }
+    }
+
+    private func activityHeadline(_ state: ComputerUseTaskState) -> String {
+        switch state {
+        case .running: return "Working in TextEdit…"
+        case .completed: return "Done"
+        case .stopped: return "Stopped"
+        case .failed: return "Couldn't finish"
+        case .awaitingPermission: return "Setup needed"
+        case .awaitingFolderSelection: return "Folder needed"
+        case .awaitingUserInput(let prompt): return prompt
+        case .idle: return "Ready"
         }
     }
 
@@ -283,7 +368,7 @@ private struct AgentConversationView: View {
     private var composer: some View {
         VStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 10) {
-                TextField("Message \(persona.displayName)…", text: $session.draft, axis: .vertical)
+                TextField(session.mode.composerPlaceholder(personaName: persona.displayName), text: $session.draft, axis: .vertical)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .lineLimit(1...5)
@@ -291,11 +376,9 @@ private struct AgentConversationView: View {
                     .onSubmit(submit)
                     .accessibilityLabel("Message \(persona.displayName)")
 
-                HStack {
-                    Text("⌥ Return for a new line")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Spacer()
+                HStack(spacing: 8) {
+                    modePicker
+                    Spacer(minLength: 4)
                     if session.isStreaming {
                         Button(action: { session.stopGeneration() }) {
                             Image(systemName: "stop.fill")
@@ -333,6 +416,41 @@ private struct AgentConversationView: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 15)
         .padding(.top, 8)
+    }
+
+    private var modePicker: some View {
+        Menu {
+            ForEach(AgentMode.allCases) { mode in
+                Button {
+                    session.mode = mode
+                } label: {
+                    Label(
+                        "\(mode.displayName) — \(mode.explanation)",
+                        systemImage: mode == session.mode ? "checkmark" : mode.systemImageName
+                    )
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: session.mode.systemImageName)
+                    .font(.system(size: 10, weight: .medium))
+                Text(session.mode.displayName)
+                    .font(.system(size: 11, weight: .medium))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(.primary.opacity(0.05), in: Capsule())
+            .overlay(Capsule().strokeBorder(.primary.opacity(0.08), lineWidth: 1))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel("Agent mode")
+        .accessibilityValue(session.mode.displayName)
+        .help(session.mode.explanation)
     }
 
     private func submit() {
