@@ -35,12 +35,36 @@ xcodebuild -project apps/macos/caocap/caocap.xcodeproj -scheme caocap -configura
 # Android debug APK (requires JDK 17 and ANDROID_HOME / an SDK)
 ./apps/android/caocap/gradlew -p apps/android/caocap :app:assembleDebug
 
+# Backend: unit tests, then rules and integration tests against the emulator
+npm --prefix firebase/functions test
+firebase emulators:exec --config firebase/firebase.json --project demo-caocap --only firestore "npm --prefix firebase/functions run test:rules"
+
 git diff --check
 ```
 
+### Signed macOS builds
+
+`CODE_SIGNING_ALLOWED=NO` skips entitlement processing, so an unsigned build
+embeds no entitlements at all. Sandbox and helper mistakes are invisible to it:
+the build succeeds and the tests pass either way. Anything touching
+entitlements, the XPC helper, or the bundled driver must also be checked on a
+signed build.
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project apps/macos/caocap/caocap.xcodeproj -scheme caocap -configuration Debug -destination 'platform=macOS' -derivedDataPath /tmp/caocap-signed CODE_SIGN_IDENTITY="Apple Development" CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=6QYT6GJB4Z build
+
+./scripts/release/verify-macos-bundle.sh /tmp/caocap-signed/Build/Products/Debug/caocap.app
+```
+
+That script asserts the invariants the architecture depends on: the app is
+sandboxed, the helper is not, and the driver is bundled where the helper looks
+for it and signed the same way. Pass the generic `"Apple Development"` identity
+rather than a full identity string, or the SwiftPM dependencies fail with
+conflicting provisioning settings.
+
 Windows builds need Visual Studio 2022 and the Windows App SDK on Windows; they are not part of the Apple validation path. Linux builds need GTK 4 / libadwaita on Linux, or Flatpak with the GNOME SDK as described in `apps/linux/README.md`; they are not required on macOS.
 
-The iOS project includes `caocapTests` and `caocapUITests`; macOS has no test target. For macOS UI changes, run the app on **My Mac** and check wake/tuck, CoCaptain/CoStar switch, drag, tap-to-toggle Agent chat, prompt entry and draft retention, and that the chat's Open CAOCAP button focuses the existing hub window. See `apps/macos/README.md` for the chat checks.
+The iOS project includes `caocapTests` and `caocapUITests`. macOS has a `caocapTests` target covering saved-file verification, reporting-failure ordering, and run reservation under cancellation. The relay's own decision logic (busy, expired, setup incomplete, no folder, opt-out) is still inlined in `RemoteCommandRelay` and is not yet covered. For macOS UI changes, run the app on **My Mac** and check wake/tuck, CoCaptain/CoStar switch, drag, tap-to-toggle Agent chat, prompt entry and draft retention, and that the chat's Open CAOCAP button focuses the existing hub window. See `apps/macos/README.md` for the chat checks.
 
 - For app changes, build the affected platform, run relevant tests, and check the changed flow when a simulator or device is available.
 - For documentation and folder moves, verify links, project-relative paths, and asset references.

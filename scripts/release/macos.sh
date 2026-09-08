@@ -15,9 +15,12 @@ for binary in "$helper/Contents/Helpers/cua-driver" "$helper/Contents/Helpers/cu
 done
 codesign --verify --strict "$helper"
 codesign --verify --deep --strict "$app"
+# Asserts the sandbox/helper/driver invariants. A release that gets these wrong
+# still builds, still passes tests, and simply cannot drive anything.
+"$root/scripts/release/verify-macos-bundle.sh" "$app"
 # Inspect intended entitlements, including the unsandboxed XPC service and main app scope.
-codesign -d --entitlements :- "$app" > "$out/app-entitlements.plist"
-codesign -d --entitlements :- "$helper" > "$out/helper-entitlements.plist"
+codesign -d --entitlements - --xml "$app" > "$out/app-entitlements.plist"
+codesign -d --entitlements - --xml "$helper" > "$out/helper-entitlements.plist"
 /usr/bin/ditto -c -k --keepParent "$app" "$out/caocap-notarization.zip"
 xcrun notarytool submit "$out/caocap-notarization.zip" --keychain-profile "$NOTARY_KEYCHAIN_PROFILE" --wait
 xcrun stapler staple "$app"
