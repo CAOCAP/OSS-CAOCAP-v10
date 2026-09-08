@@ -2,30 +2,74 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function isNonAnonymousOwner(userId) {
-      return request.auth != null
-        && request.auth.uid == userId
+      return request.auth != null && request.auth.uid == userId
         && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
-
     match /users/{userId}/devices/{deviceId} {
       allow read, write: if isNonAnonymousOwner(userId);
     }
-
     match /users/{userId}/commands/{commandId} {
+      function changesOnly(fields) {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+      }
+      function progressValid() {
+        let steps = request.resource.data.steps;
+        let oldSteps = resource.data.steps;
+        let last = steps[steps.size() - 1];
+        return steps is list && steps.size() <= 20 && steps.size() == oldSteps.size() + 1
+          && last is map && last.keys().hasAll(['index', 'summary'])
+          && last.keys().hasOnly(['index', 'summary']) && last.index == steps.size()
+          && last.summary is string && last.summary.size() > 0 && last.summary.size() <= 160
+          && steps.removeAll([last]) == oldSteps;
+      }
+      function resultValid() {
+        let result = request.resource.data.result;
+        return result is map && result.keys().hasAll(['fileName', 'previewText', 'previewTruncated'])
+          && result.keys().hasOnly(['fileName', 'previewText', 'previewTruncated'])
+          && result.fileName is string && result.fileName.size() > 0 && result.fileName.size() <= 128
+          && !result.fileName.matches('.*[/\\\\].*')
+          && result.previewText is string && result.previewText.size() > 0 && result.previewText.size() <= 8000
+          && result.previewTruncated is bool;
+      }
+      function failed() {
+        return request.resource.data.status == 'failed'
+          && request.resource.data.result == null
+          && request.resource.data.failureCode in ['setupIncomplete', 'noWorkspaceFolder', 'busy',
+            'unsupportedTarget', 'stoppedOnMac', 'runTimeout', 'modelUnavailable', 'actionFailed',
+            'noResultFile', 'quotaExceeded', 'serviceUnavailable', 'invalidModelAction',
+            'stepLimitExceeded', 'reportingUnavailable', 'documentChanged'];
+      }
+      function terminal() {
+        return changesOnly(['status', 'finishedAt', 'failureCode', 'result'])
+          && request.resource.data.finishedAt == request.time
+          && (failed()
+            || (resource.data.type != 'computerUse' && request.resource.data.status == 'opened'
+              && request.resource.data.result == null && request.resource.data.failureCode == null)
+            || (resource.data.type == 'computerUse' && resource.data.status == 'running'
+              && request.resource.data.status == 'completed' && request.resource.data.failureCode == null && resultValid()));
+      }
+      function transition() {
+        let old = resource.data;
+        let next = request.resource.data;
+        return (old.status == 'pending' && next.status == 'claimed'
+            && request.time < old.expiresAt && next.claimedAt == request.time
+            && next.claimedByDeviceId is string && next.claimedByDeviceId.size() > 0 && next.claimedByDeviceId.size() <= 64
+            && changesOnly(['status', 'claimedAt', 'claimedByDeviceId']))
+          || (old.status == 'pending' && next.status == 'expired'
+            && request.time >= old.expiresAt && next.finishedAt == request.time
+            && changesOnly(['status', 'finishedAt']))
+          || (old.status == 'claimed' && old.type == 'computerUse' && next.status == 'running'
+            && next.startedAt == request.time && request.time < old.reportingDeadline
+            && changesOnly(['status', 'startedAt']))
+          || (old.status == 'running' && old.type == 'computerUse' && next.status == 'running'
+            && changesOnly(['steps']) && progressValid())
+          || (old.status in ['claimed', 'running'] && terminal());
+      }
       allow read: if isNonAnonymousOwner(userId);
       allow create, delete: if false;
-      allow update: if isNonAnonymousOwner(userId)
-        && request.resource.data.type == resource.data.type
-        && request.resource.data.url == resource.data.url
-        && (
-          (resource.data.status == 'pending' && request.resource.data.status == 'claimed')
-          || (resource.data.status == 'claimed'
-            && request.resource.data.status in ['opened', 'failed'])
-        );
+      allow update: if isNonAnonymousOwner(userId) && resource.data.schemaVersion == 2
+        && resource.data.requestId == commandId && transition();
     }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }
