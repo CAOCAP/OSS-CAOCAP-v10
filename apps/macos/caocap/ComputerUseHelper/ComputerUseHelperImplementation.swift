@@ -3,9 +3,6 @@ import Foundation
 final class ComputerUseHelperImplementation: NSObject, ComputerUseHelperProtocol {
     private let driver = CuaDriverClient()
     private let queue = DispatchQueue(label: "com.caocap.driver")
-    func configure(socketPath: String, reply: @escaping (String?) -> Void) {
-        queue.async { do { try self.driver.configure(socketPath: socketPath); reply(nil) } catch { reply(error.localizedDescription) } }
-    }
     func ping(reply: @escaping (String) -> Void) { reply("ready") }
     func status(reply: @escaping (Data) -> Void) {
         queue.async { reply((try? JSONEncoder().encode(self.driver.status())) ?? Data()) }

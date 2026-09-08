@@ -1,6 +1,4 @@
 import Foundation
-import ApplicationServices
-import CoreGraphics
 
 struct ComputerUseDriverStatus: Codable {
     let installed: Bool
@@ -30,7 +28,6 @@ private final class HelperReply<T>: @unchecked Sendable {
 
 @MainActor
 final class ComputerUseHelperClient {
-    private let runtime = ComputerUseOwnedRuntime()
     private var connection: NSXPCConnection?
     private var pending: [UUID: (Error) -> Void] = [:]
     private func connected() -> NSXPCConnection {
@@ -51,18 +48,14 @@ final class ComputerUseHelperClient {
         proxy.cancel {}
     }
     func shutdown() {
-        runtime.shutdown()
         (connection?.remoteObjectProxy as? ComputerUseHelperProtocol)?.shutdown {}
     }
     func ping() async throws -> String { try await request { proxy, reply in proxy.ping { reply(.success($0)) } } }
     func status() async throws -> ComputerUseDriverStatus {
-        ComputerUseDriverStatus(installed: runtime.installed, running: runtime.running,
-            accessibilityGranted: AXIsProcessTrusted(), screenRecordingGranted: CGPreflightScreenCaptureAccess())
+        let data: Data = try await request { proxy, reply in proxy.status { reply(.success($0)) } }
+        return try JSONDecoder().decode(ComputerUseDriverStatus.self, from: data)
     }
     func prepareDocument(_ url: URL) async throws {
-        try await runtime.start()
-        let _: Void = try await request { proxy, reply in proxy.configure(socketPath: runtime.socket) { reply(Self.voidResult($0)) } }
-        try Task.checkCancellation()
         let _: Void = try await request { proxy, reply in proxy.prepareDocument(path: url.path) { reply(Self.voidResult($0)) } }
     }
     func captureScreenshot(bundleIdentifier: String) async throws -> Data {
@@ -77,9 +70,7 @@ final class ComputerUseHelperClient {
         let _: Void = try await request { proxy, reply in proxy.performAction(actionJSON: json, bundleIdentifier: bundleIdentifier) { reply(Self.voidResult($0)) } }
     }
     func requestPermissions() async throws {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-        _ = CGRequestScreenCaptureAccess()
+        let _: Void = try await request { proxy, reply in proxy.requestPermissions { reply(Self.voidResult($0)) } }
     }
     nonisolated private static func voidResult(_ error: String?) -> Result<Void, Error> {
         error.map { .failure(ComputerUseFailure(rawValue: $0) ?? .actionFailed) } ?? .success(())

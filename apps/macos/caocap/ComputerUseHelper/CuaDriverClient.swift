@@ -15,7 +15,8 @@ final class CuaDriverClient: @unchecked Sendable {
     private var activeProcess: Process?
     private var cancelled = false
     private var documentURL: URL?
-    private var socketDirectory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("caocap-driver-\(UUID().uuidString)")
+    private var daemon: Process?
+    private let socketDirectory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("caocap-driver-\(UUID().uuidString)")
     private var socket: String { socketDirectory.appendingPathComponent("driver.sock").path }
     private var binary: URL? {
         let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/cua-driver")
@@ -27,7 +28,7 @@ final class CuaDriverClient: @unchecked Sendable {
     }
 
     func status() -> ComputerUseDriverStatus {
-        ComputerUseDriverStatus(installed: binary != nil, running: FileManager.default.fileExists(atPath: socket),
+        ComputerUseDriverStatus(installed: binary != nil, running: daemon?.isRunning == true,
             accessibilityGranted: AXIsProcessTrusted(), screenRecordingGranted: CGPreflightScreenCaptureAccess())
     }
     func requestPermissions() {
@@ -35,11 +36,36 @@ final class CuaDriverClient: @unchecked Sendable {
         _ = AXIsProcessTrustedWithOptions(options)
         _ = CGRequestScreenCaptureAccess()
     }
-    func configure(socketPath: String) throws {
-        let url = URL(fileURLWithPath: socketPath).standardizedFileURL
-        guard url.lastPathComponent == "driver.sock", url.deletingLastPathComponent().lastPathComponent.hasPrefix("caocap-driver-"),
-              FileManager.default.fileExists(atPath: url.path) else { throw DriverError("setupIncomplete") }
-        socketDirectory = url.deletingLastPathComponent()
+    /// Spawns the bundled driver from this unsandboxed helper. The main app is
+    /// sandboxed, and a sandboxed parent would pass its sandbox to the child --
+    /// which can then never hold Accessibility or Screen Recording.
+    func ensureDaemonRunning() throws {
+        if daemon?.isRunning == true { return }
+        guard let binary else { throw DriverError("setupIncomplete") }
+        try FileManager.default.createDirectory(
+            at: socketDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+        )
+        try? FileManager.default.removeItem(atPath: socket)
+        let process = Process()
+        process.executableURL = binary
+        // TCC rolls an embedded XPC service's responsibility up to its containing app.
+        process.arguments = ["serve", "--embedded", "--host-bundle-id", "com.Ficruty.caocap", "--socket", socket]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        daemon = process
+        for _ in 0..<50 {
+            if FileManager.default.fileExists(atPath: socket) { return }
+            guard process.isRunning else { break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        terminateDaemon()
+        throw DriverError("setupIncomplete")
+    }
+    private func terminateDaemon() {
+        if let daemon, daemon.isRunning { daemon.terminate() }
+        daemon = nil
+        try? FileManager.default.removeItem(at: socketDirectory)
     }
     func prepareDocument(path: String) throws {
         lock.withLock { cancelled = false }
@@ -48,7 +74,7 @@ final class CuaDriverClient: @unchecked Sendable {
               let data = FileManager.default.contents(atPath: url.path), data.isEmpty,
               try url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw DriverError("documentChanged") }
         documentURL = url
-        guard FileManager.default.fileExists(atPath: socket) else { throw DriverError("setupIncomplete") }
+        try ensureDaemonRunning()
         _ = try execute(URL(fileURLWithPath: "/usr/bin/open"), ["-a", "TextEdit", url.path], timeout: 10)
         for _ in 0..<30 {
             if (try? target()) != nil { return }
@@ -94,6 +120,7 @@ final class CuaDriverClient: @unchecked Sendable {
     func shutdown() {
         cancel()
         documentURL = nil
+        terminateDaemon()
     }
     private func checkCancellation() throws {
         if lock.withLock({ cancelled }) { throw DriverError("stoppedOnMac") }

@@ -3,7 +3,6 @@ import Foundation
 /// Keep identical in the app and helper targets (Objective-C XPC selectors).
 @objc(ComputerUseHelperProtocol)
 protocol ComputerUseHelperProtocol {
-    func configure(socketPath: String, reply: @escaping (String?) -> Void)
     func ping(reply: @escaping (String) -> Void)
     func status(reply: @escaping (Data) -> Void)
     func prepareDocument(path: String, reply: @escaping (String?) -> Void)

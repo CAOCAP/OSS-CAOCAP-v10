@@ -12,11 +12,7 @@ final class ComputerUseAgentService {
     private let verify: (URL) throws -> ComputerUseResult
     init(helperClient: any ComputerUseDriving, openAIClient: any ComputerUseModel,
          now: @escaping () -> Date = Date.init,
-         access: @escaping (URL) -> Bool = {
-             // Developer ID host is not sandboxed; a valid bookmark may need no grant.
-             _ = $0.startAccessingSecurityScopedResource()
-             return FileManager.default.isWritableFile(atPath: $0.path)
-         },
+         access: @escaping (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
          releaseAccess: @escaping (URL) -> Void = { $0.stopAccessingSecurityScopedResource() },
          verify: @escaping (URL) throws -> ComputerUseResult = ComputerUseAgentService.verifyResult) {
         self.helperClient = helperClient; self.openAIClient = openAIClient

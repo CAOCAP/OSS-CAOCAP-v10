@@ -25,7 +25,13 @@
 			remoteGlobalIDString = 5DCA00000000000000000003;
 			remoteInfo = ComputerUseHelper;
 		};
-        5DCA00000000000000000103 = {isa = PBXContainerItemProxy; containerPortal = 4C89E7913034171D00976521; proxyType = 1; remoteGlobalIDString = 4C89E7983034171D00976521; remoteInfo = caocap; };
+		5DCA00000000000000000103 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C89E7913034171D00976521 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4C89E7983034171D00976521;
+			remoteInfo = caocap;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -47,7 +53,7 @@
 		5DCA00000000000000000001 /* ComputerUseHelper.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = ComputerUseHelper.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
 		5DCA00000000000000000020 /* ComputerUseHelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ComputerUseHelper.entitlements; sourceTree = "<group>"; };
 		5DCA00000000000000000021 /* ComputerUseHelper-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "ComputerUseHelper-Info.plist"; sourceTree = "<group>"; };
-        5DCA00000000000000000101 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = caocapTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		5DCA00000000000000000101 /* caocapTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = caocapTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -61,7 +67,11 @@
 			path = ComputerUseHelper;
 			sourceTree = "<group>";
 		};
-        5DCA00000000000000000102 = {isa = PBXFileSystemSynchronizedRootGroup; path = caocapTests; sourceTree = "<group>"; };
+		5DCA00000000000000000102 /* caocapTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = caocapTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,7 +96,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-        5DCA00000000000000000106 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		5DCA00000000000000000106 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -94,7 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				4C89E79B3034171D00976521 /* caocap */,
-                5DCA00000000000000000102,
+				5DCA00000000000000000102 /* caocapTests */,
 				5DCA00000000000000000002 /* ComputerUseHelper */,
 				5DCA00000000000000000020 /* ComputerUseHelper.entitlements */,
 				5DCA00000000000000000021 /* ComputerUseHelper-Info.plist */,
@@ -106,7 +122,7 @@
 			isa = PBXGroup;
 			children = (
 				4C89E7993034171D00976521 /* caocap.app */,
-                5DCA00000000000000000101,
+				5DCA00000000000000000101 /* caocapTests.xctest */,
 				5DCA00000000000000000001 /* ComputerUseHelper.xpc */,
 			);
 			name = Products;
@@ -167,14 +183,27 @@
 			productReference = 5DCA00000000000000000001 /* ComputerUseHelper.xpc */;
 			productType = "com.apple.product-type.xpc-service";
 		};
-        5DCA00000000000000000108 = {isa = PBXNativeTarget;
-            buildConfigurationList = 5DCA00000000000000000109;
-            buildPhases = (5DCA00000000000000000105, 5DCA00000000000000000106, 5DCA00000000000000000107);
-            buildRules = (); dependencies = (5DCA00000000000000000104);
-            fileSystemSynchronizedGroups = (5DCA00000000000000000102);
-            name = caocapTests; productName = caocapTests; productReference = 5DCA00000000000000000101;
-            productType = "com.apple.product-type.bundle.unit-test";
-        };
+		5DCA00000000000000000108 /* caocapTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5DCA00000000000000000109 /* Build configuration list for PBXNativeTarget "caocapTests" */;
+			buildPhases = (
+				5DCA00000000000000000105 /* Sources */,
+				5DCA00000000000000000106 /* Frameworks */,
+				5DCA00000000000000000107 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5DCA00000000000000000104 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5DCA00000000000000000102 /* caocapTests */,
+			);
+			name = caocapTests;
+			productName = caocapTests;
+			productReference = 5DCA00000000000000000101 /* caocapTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -211,7 +240,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-                5DCA00000000000000000108,
+				5DCA00000000000000000108 /* caocapTests */,
 				4C89E7983034171D00976521 /* caocap */,
 				5DCA00000000000000000003 /* ComputerUseHelper */,
 			);
@@ -233,7 +262,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-        5DCA00000000000000000107 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		5DCA00000000000000000107 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
@@ -269,7 +304,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-        5DCA00000000000000000105 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		5DCA00000000000000000105 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -278,7 +319,11 @@
 			target = 5DCA00000000000000000003 /* ComputerUseHelper */;
 			targetProxy = 5DCA00000000000000000012 /* PBXContainerItemProxy */;
 		};
-        5DCA00000000000000000104 = {isa = PBXTargetDependency; target = 4C89E7983034171D00976521; targetProxy = 5DCA00000000000000000103; };
+		5DCA00000000000000000104 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4C89E7983034171D00976521 /* caocap */;
+			targetProxy = 5DCA00000000000000000103 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -512,22 +557,48 @@
 			};
 			name = Release;
 		};
-        5DCA00000000000000000110 = {isa = XCBuildConfiguration; buildSettings = {
-            BUNDLE_LOADER = "$(TEST_HOST)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/caocap.app/Contents/MacOS/caocap";
-            GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 26.5;
-            PRODUCT_BUNDLE_IDENTIFIER = com.Ficruty.caocapTests; PRODUCT_NAME = "$(TARGET_NAME)";
-            SWIFT_VERSION = 5.0; SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-            CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 6QYT6GJB4Z;
-            LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", "@loader_path/../Frameworks");
-        }; name = Debug; };
-        5DCA00000000000000000111 = {isa = XCBuildConfiguration; buildSettings = {
-            BUNDLE_LOADER = "$(TEST_HOST)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/caocap.app/Contents/MacOS/caocap";
-            GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 26.5;
-            PRODUCT_BUNDLE_IDENTIFIER = com.Ficruty.caocapTests; PRODUCT_NAME = "$(TARGET_NAME)";
-            SWIFT_VERSION = 5.0; SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-            CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = 6QYT6GJB4Z;
-            LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks", "@loader_path/../Frameworks");
-        }; name = Release; };
+		5DCA00000000000000000110 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6QYT6GJB4Z;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Ficruty.caocapTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/caocap.app/Contents/MacOS/caocap";
+			};
+			name = Debug;
+		};
+		5DCA00000000000000000111 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6QYT6GJB4Z;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Ficruty.caocapTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/caocap.app/Contents/MacOS/caocap";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -558,7 +629,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-        5DCA00000000000000000109 = {isa = XCConfigurationList; buildConfigurations = (5DCA00000000000000000110, 5DCA00000000000000000111); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		5DCA00000000000000000109 /* Build configuration list for PBXNativeTarget "caocapTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5DCA00000000000000000110 /* Debug */,
+				5DCA00000000000000000111 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
