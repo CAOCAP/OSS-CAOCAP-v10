@@ -67,7 +67,7 @@ final class AgentChatSession {
     }
 
     var canSubmit: Bool {
-        !isStreaming && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isStreaming && (mode.isProseOnly || computerUse?.coordinator.isRunning != true) && !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @ObservationIgnored
@@ -124,7 +124,7 @@ final class AgentChatSession {
         streamingTask = nil
         agentRunTask?.cancel()
         agentRunTask = nil
-        computerUse?.agentService.stop()
+        computerUse?.coordinator.cancel()
         markCurrentAssistantFinished()
         setGenerationState(.idle)
     }
@@ -184,55 +184,37 @@ final class AgentChatSession {
         }
     }
 
+    func beginRemoteRun(taskSummary: String) -> UUID {
+        messages.append(ChatMessage(role: .user, text: "From your iPhone: " + taskSummary, mode: .agent))
+        let id = UUID()
+        messages.append(ChatMessage(id: id, role: .assistant, text: "", mode: .agent, activity: AgentRunActivity()))
+        setGenerationState(.streaming)
+        return id
+    }
+
+    func receiveRunEvent(_ event: ComputerUseRunEvent, messageID: UUID) {
+        switch event {
+        case .checkpoint: break
+        case .step(let step): updateActivity(messageID) { $0.steps.append(step) }
+        case .completed(_, let url): finishRun(messageID, state: .completed(resultPath: url.path))
+        case .failed(let failure): finishRun(messageID, state: failure == .stoppedOnMac ? .stopped : .failed(message: failure.localizedDescription))
+        }
+    }
+
     private func startAgentRun(taskSummary: String) {
         let messageID = UUID()
         messages.append(ChatMessage(id: messageID, role: .assistant, text: "", mode: .agent, activity: AgentRunActivity()))
         setGenerationState(.streaming)
-
-        if let unsupported = ComputerUseAllowlist.unsupportedAppNamed(in: taskSummary) {
-            finishRun(messageID, state: .failed(
-                message: "I can only work in TextEdit right now, so I can't do this in \(unsupported)."
-            ))
-            return
-        }
-
-        guard let computerUse else {
-            finishRun(messageID, state: .failed(message: "Computer use isn't available in this build."))
-            return
-        }
-
-        agentRunTask = Task { [weak self] in
-            guard let self else { return }
-            await computerUse.installGate.refresh()
-            guard !Task.isCancelled else { return }
-
-            guard computerUse.installGate.isReady else {
-                self.finishRun(messageID, state: .awaitingPermission)
-                ComputerUseSetupPresenter.present(installGate: computerUse.installGate)
-                return
-            }
-
-            guard let folderURL = computerUse.workspace.resolveFolder() else {
-                self.finishRun(messageID, state: .awaitingFolderSelection)
-                return
-            }
-            guard !Task.isCancelled else { return }
-
-            computerUse.agentService.start(
-                taskSummary: taskSummary,
-                folderURL: folderURL,
-                onStep: { [weak self] step in
-                    self?.updateActivity(messageID) { $0.steps.append(step) }
-                },
-                onStateChange: { [weak self] state in
-                    guard let self else { return }
-                    if case .running = state {
-                        self.updateActivity(messageID) { $0.state = state }
-                    } else {
-                        self.finishRun(messageID, state: state)
-                    }
+        guard let computerUse else { finishRun(messageID, state: .failed(message: "Computer use is unavailable.")); return }
+        agentRunTask = Task {
+            do {
+                _ = try await computerUse.coordinator.start(request: .init(taskSummary: taskSummary), origin: .local) { [weak self] event in
+                    self?.receiveRunEvent(event, messageID: messageID)
                 }
-            )
+            } catch {
+                self.finishRun(messageID, state: .failed(message: error.localizedDescription))
+                if error as? ComputerUseFailure == .setupIncomplete { ComputerUseSetupPresenter.present(installGate: computerUse.installGate) }
+            }
         }
     }
 

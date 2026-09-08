@@ -1,0 +1,12 @@
+{
+  "version": "0.24.0",
+  "sourceRevision": "4b3396d9fe4bd3cf723b0eb8db83c18a8764b520",
+  "source": "https://github.com/trycua/cua",
+  "license": "MIT",
+  "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.24.0/cua-driver-rs-0.24.0-darwin-universal-binary.tar.gz",
+  "sha256": "31790cb49baa206f6455fbc259f8f83ae27e86be908f5c8cac5ec2f8521f8382",
+  "binaries": {
+    "cua-driver": "bb80f3e3e07812a30cbf42a30a1906f365f8aa91db67f98b3fdc4b36d2bc0430",
+    "cua-cursor-theme": "93cd4775680eb8e39857ade82f28909af5a0baf775c28385cbea0476e5b9607b"
+  }
+}

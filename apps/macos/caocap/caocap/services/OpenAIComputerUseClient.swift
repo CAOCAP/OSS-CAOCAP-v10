@@ -2,55 +2,26 @@ import FirebaseFunctions
 import Foundation
 
 struct ComputerUseStepResult {
-    let responseId: String
-    let callId: String?
     let actions: [[String: Any]]
-    let message: String?
     let done: Bool
 }
-
-/// Calls the `computerUseStep` Firebase Function, which holds the OpenAI key server-side and
-/// talks to the Responses API using gpt-6-astra with cua-driver's tools exposed as standard
-/// function-calling tools (see firebase/functions/src/index.ts).
 @MainActor
 final class OpenAIComputerUseClient {
-    func step(
-        taskSummary: String,
-        screenshotBase64: String,
-        previousResponseId: String?,
-        previousCallId: String?
-    ) async throws -> ComputerUseStepResult {
-        var payload: [String: Any] = [
-            "taskSummary": taskSummary,
-            "screenshotBase64": screenshotBase64,
-        ]
-        if let previousResponseId {
-            payload["previousResponseId"] = previousResponseId
+    func step(runID: String, commandID: String?, stepIndex: Int, taskSummary: String, screenshotBase64: String) async throws -> ComputerUseStepResult {
+        var payload: [String: Any] = ["runId": runID, "stepIndex": stepIndex, "taskSummary": taskSummary, "screenshotBase64": screenshotBase64]
+        if let commandID { payload["commandId"] = commandID }
+        do {
+            let callable = Functions.functions(region: "us-central1").httpsCallable("computerUseStep")
+            callable.timeoutInterval = 55
+            let result = try await callable.call(payload)
+            try Task.checkCancellation()
+            guard let data = result.data as? [String: Any], let done = data["done"] as? Bool,
+                  let actions = data["actions"] as? [[String: Any]] else { throw ComputerUseFailure.invalidModelAction }
+            return ComputerUseStepResult(actions: actions, done: done)
+        } catch let error as NSError {
+            if Task.isCancelled { throw CancellationError() }
+            if let details = error.userInfo[FunctionsErrorDetailsKey] as? [String: Any], let raw = details["failureCode"] as? String, let failure = ComputerUseFailure(rawValue: raw) { throw failure }
+            throw (error as? ComputerUseFailure) ?? ComputerUseFailure.modelUnavailable
         }
-        if let previousCallId {
-            payload["previousCallId"] = previousCallId
-        }
-
-        let result = try await Functions.functions(region: "us-central1")
-            .httpsCallable("computerUseStep")
-            .call(payload)
-
-        guard let data = result.data as? [String: Any],
-              let responseId = data["responseId"] as? String,
-              let done = data["done"] as? Bool else {
-            throw OpenAIComputerUseClientError.unexpectedResponse
-        }
-
-        return ComputerUseStepResult(
-            responseId: responseId,
-            callId: data["callId"] as? String,
-            actions: data["actions"] as? [[String: Any]] ?? [],
-            message: data["message"] as? String,
-            done: done
-        )
     }
-}
-
-enum OpenAIComputerUseClientError: Error {
-    case unexpectedResponse
 }

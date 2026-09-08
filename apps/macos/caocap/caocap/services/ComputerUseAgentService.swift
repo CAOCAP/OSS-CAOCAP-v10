@@ -1,192 +1,75 @@
 import Foundation
 import Observation
-import OSLog
 
-/// Runs the observe -> decide -> act loop for one computer-use task: screenshot (via the
-/// unsandboxed helper/cua-driver) -> OpenAIComputerUseClient -> allowlist check -> execute the
-/// action (via the helper) -> repeat, until the model calls `finish` or a limit is hit.
-///
-/// One shared instance for the whole app (CompanionController owns it) since there is only one
-/// desktop to drive regardless of which persona's chat started the task.
-@MainActor
-@Observable
+@MainActor @Observable
 final class ComputerUseAgentService {
-    private static let maxSteps = 20
-    private static let timeout: TimeInterval = 180
-    private static let targetBundleIdentifier = "com.apple.TextEdit"
-
-    private let helperClient: ComputerUseHelperClient
-    private let openAIClient: OpenAIComputerUseClient
-    private let logger = Logger(subsystem: "com.caocap.app", category: "ComputerUseAgentService")
-
-    private var runTask: Task<Void, Never>?
-    private var shouldStop = false
-
-    var isRunning: Bool { runTask != nil }
-
-    init(helperClient: ComputerUseHelperClient, openAIClient: OpenAIComputerUseClient) {
-        self.helperClient = helperClient
-        self.openAIClient = openAIClient
+    private let helperClient: any ComputerUseDriving
+    private let openAIClient: any ComputerUseModel
+    private(set) var isRunning = false
+    private let now: () -> Date
+    private let access: (URL) -> Bool
+    private let releaseAccess: (URL) -> Void
+    private let verify: (URL) throws -> ComputerUseResult
+    init(helperClient: any ComputerUseDriving, openAIClient: any ComputerUseModel,
+         now: @escaping () -> Date = Date.init,
+         access: @escaping (URL) -> Bool = {
+             // Developer ID host is not sandboxed; a valid bookmark may need no grant.
+             _ = $0.startAccessingSecurityScopedResource()
+             return FileManager.default.isWritableFile(atPath: $0.path)
+         },
+         releaseAccess: @escaping (URL) -> Void = { $0.stopAccessingSecurityScopedResource() },
+         verify: @escaping (URL) throws -> ComputerUseResult = ComputerUseAgentService.verifyResult) {
+        self.helperClient = helperClient; self.openAIClient = openAIClient
+        self.now = now; self.access = access; self.releaseAccess = releaseAccess; self.verify = verify
     }
-
-    func start(
-        taskSummary: String,
-        folderURL: URL,
-        onStep: @escaping (ComputerUseStep) -> Void,
-        onStateChange: @escaping (ComputerUseTaskState) -> Void
-    ) {
-        guard runTask == nil else { return }
-        shouldStop = false
-        runTask = Task { [weak self] in
-            await self?.run(taskSummary: taskSummary, folderURL: folderURL, onStep: onStep, onStateChange: onStateChange)
-            self?.runTask = nil
+    func stop() { helperClient.cancel() }
+    func run(id: UUID, commandID: String?, taskSummary: String, folderURL: URL,
+             onEvent: @escaping (ComputerUseRunEvent) async throws -> Void) async throws {
+        guard !isRunning else { throw ComputerUseFailure.busy }
+        isRunning = true
+        defer { isRunning = false }
+        guard access(folderURL) else { throw ComputerUseFailure.noWorkspaceFolder }
+        defer { releaseAccess(folderURL) }
+        let file = folderURL.appendingPathComponent("CAOCAP-\(id.uuidString).txt")
+        guard !FileManager.default.fileExists(atPath: file.path) else { throw ComputerUseFailure.documentChanged }
+        try Task.checkCancellation()
+        try Data().write(to: file, options: .withoutOverwriting)
+        try await helperClient.prepareDocument(file)
+        let deadline = now().addingTimeInterval(180)
+        for index in 0..<20 {
+            try Task.checkCancellation()
+            guard now() < deadline else { throw ComputerUseFailure.runTimeout }
+            try await onEvent(.checkpoint)
+            let screenshot = try await helperClient.captureScreenshot(bundleIdentifier: "com.apple.TextEdit")
+            let response = try await openAIClient.step(runID: id.uuidString, commandID: commandID, stepIndex: index,
+                taskSummary: taskSummary, screenshotBase64: screenshot.base64EncodedString())
+            try Task.checkCancellation()
+            guard now() < deadline else { throw ComputerUseFailure.runTimeout }
+            try await onEvent(.checkpoint)
+            try Task.checkCancellation()
+            if response.done {
+                let result = try verify(file)
+                try await onEvent(.completed(result, file))
+                return
+            }
+            guard response.actions.count == 1, let action = response.actions.first else { throw ComputerUseFailure.invalidModelAction }
+            try await helperClient.performAction(action, bundleIdentifier: "com.apple.TextEdit")
+            try Task.checkCancellation()
+            let summary: String
+            switch action["type"] as? String {
+            case "type": summary = "Typed document text"
+            case "keypress": summary = (action["keys"] as? [String]) == ["cmd", "s"] ? "Saved the document" : "Edited document text"
+            default: summary = "Waited for TextEdit"
+            }
+            try await onEvent(.step(ComputerUseStep(index: index + 1, summary: summary, timestamp: now())))
         }
+        throw ComputerUseFailure.stepLimitExceeded
     }
-
-    /// Cancelling matters as well as setting the flag: a step can sit inside a 60s model call, and
-    /// the loop would otherwise keep going until that call returns on its own.
-    func stop() {
-        shouldStop = true
-        runTask?.cancel()
-    }
-
-    private func run(
-        taskSummary: String,
-        folderURL: URL,
-        onStep: @escaping (ComputerUseStep) -> Void,
-        onStateChange: @escaping (ComputerUseTaskState) -> Void
-    ) async {
-        guard ComputerUseAllowlist.isAllowed(bundleIdentifier: Self.targetBundleIdentifier) else {
-            onStateChange(.failed(message: "\(Self.targetBundleIdentifier) isn't allowlisted for computer-use."))
-            return
-        }
-
-        onStateChange(.running)
-        let taskStartDate = Date()
-        let deadline = taskStartDate.addingTimeInterval(Self.timeout)
-
-        do {
-            try await helperClient.launchApp(bundleIdentifier: Self.targetBundleIdentifier)
-        } catch {
-            onStateChange(stopAware(.failed(message: "Couldn't open TextEdit: \(error.localizedDescription)")))
-            return
-        }
-
-        var previousResponseId: String?
-        var previousCallId: String?
-        var stepIndex = 0
-
-        while stepIndex < Self.maxSteps {
-            if shouldStop {
-                onStateChange(.stopped)
-                return
-            }
-            if Date() > deadline {
-                onStateChange(.failed(message: "The task took too long and was stopped."))
-                return
-            }
-
-            let screenshot: Data
-            do {
-                screenshot = try await helperClient.captureScreenshot(bundleIdentifier: Self.targetBundleIdentifier)
-            } catch {
-                onStateChange(stopAware(.failed(message: "Couldn't see TextEdit: \(error.localizedDescription)")))
-                return
-            }
-
-            let result: ComputerUseStepResult
-            do {
-                result = try await openAIClient.step(
-                    taskSummary: taskSummary,
-                    screenshotBase64: screenshot.base64EncodedString(),
-                    previousResponseId: previousResponseId,
-                    previousCallId: previousCallId
-                )
-            } catch {
-                onStateChange(stopAware(.failed(message: "The model couldn't be reached: \(error.localizedDescription)")))
-                return
-            }
-            previousResponseId = result.responseId
-            previousCallId = result.callId
-
-            if result.done {
-                logger.info("Model signaled finish: \(result.message ?? "", privacy: .public)")
-                if let resultPath = Self.mostRecentFile(in: folderURL, modifiedAfter: taskStartDate) {
-                    onStateChange(.completed(resultPath: resultPath))
-                } else {
-                    onStateChange(.failed(message: "The model said it finished, but no new file appeared in the selected folder."))
-                }
-                return
-            }
-
-            guard let action = result.actions.first else {
-                // No tool call and not done: nudge by looping again with a fresh screenshot,
-                // but this still counts against the step budget so a confused model can't spin forever.
-                stepIndex += 1
-                continue
-            }
-
-            if shouldStop {
-                onStateChange(.stopped)
-                return
-            }
-
-            do {
-                try await helperClient.performAction(action, bundleIdentifier: Self.targetBundleIdentifier)
-            } catch {
-                onStateChange(stopAware(.failed(message: "An action failed: \(error.localizedDescription)")))
-                return
-            }
-
-            stepIndex += 1
-            onStep(ComputerUseStep(index: stepIndex, summary: Self.describe(action), timestamp: Date()))
-        }
-
-        onStateChange(.failed(message: "Reached the step limit without finishing."))
-    }
-
-    /// Stopping cancels the run task, so an in-flight call can surface a cancellation error. That
-    /// is the user's Stop landing, not a failure — report it as such.
-    private func stopAware(_ failure: ComputerUseTaskState) -> ComputerUseTaskState {
-        shouldStop ? .stopped : failure
-    }
-
-    private static func describe(_ action: [String: Any]) -> String {
-        switch action["type"] as? String {
-        case "click": return "Clicked"
-        case "double_click": return "Double-clicked"
-        case "type": return "Typed text"
-        case "keypress": return "Pressed a key"
-        case "scroll": return "Scrolled"
-        case "wait": return "Waited"
-        default: return "Performed an action"
-        }
-    }
-
-    /// The independently-inspectable result check: only report success if a real file actually
-    /// appeared, rather than trusting the model's own "finish" message.
-    private static func mostRecentFile(in folderURL: URL, modifiedAfter date: Date) -> String? {
-        let accessing = folderURL.startAccessingSecurityScopedResource()
-        defer { if accessing { folderURL.stopAccessingSecurityScopedResource() } }
-
-        guard let contents = try? FileManager.default.contentsOfDirectory(
-            at: folderURL,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return nil
-        }
-
-        let newest = contents
-            .compactMap { url -> (URL, Date)? in
-                guard let modified = try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate else {
-                    return nil
-                }
-                return (url, modified)
-            }
-            .filter { $0.1 >= date }
-            .max { $0.1 < $1.1 }
-
-        return newest?.0.path
+    static func verifyResult(_ file: URL) throws -> ComputerUseResult {
+        let values = try file.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+        guard values.isRegularFile == true, values.isSymbolicLink != true, (values.fileSize ?? 0) <= 1_048_576,
+              let text = try? String(contentsOf: file, encoding: .utf8), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ComputerUseFailure.noResultFile }
+        let scalars = text.unicodeScalars
+        return ComputerUseResult(fileName: file.lastPathComponent, previewText: String(String.UnicodeScalarView(scalars.prefix(8000))), previewTruncated: scalars.count > 8000)
     }
 }

@@ -1,184 +1,143 @@
 import AppKit
+import FirebaseAuth
 import FirebaseFirestore
-import Foundation
 import Observation
-import OSLog
 
-/// Listens for allowlisted openYouTube commands and opens them in the default browser.
-/// Off until the user enables requests from iPhone.
-@Observable
-@MainActor
+@MainActor @Observable
 final class RemoteCommandRelay {
-    private static let optInKey = "caocap.enableIPhoneRequests"
-    private static let deviceIdKey = "caocap.deviceId"
-
-    var requestsEnabled: Bool {
+    var requestsEnabled = false {
         didSet {
-            UserDefaults.standard.set(requestsEnabled, forKey: Self.optInKey)
+            if let uid { UserDefaults.standard.set(requestsEnabled, forKey: "caocap.enableIPhoneRequests.\(uid)") }
+            if !requestsEnabled { coordinator?.cancel() }
             sync()
         }
     }
-
-    private let logger = Logger(subsystem: "com.caocap.app", category: "RemoteCommandRelay")
+    private(set) var lastRequest = "No requests yet"
+    private var uid: String?
+    private var epoch = UUID()
     private var listener: ListenerRegistration?
-    private var observationTask: Task<Void, Never>?
-    private var signedInUID: String?
-    private var claimingIDs: Set<String> = []
-
-    private var localDeviceId: String {
-        if let existing = UserDefaults.standard.string(forKey: Self.deviceIdKey), !existing.isEmpty {
-            return existing
-        }
-        let id = UUID().uuidString
-        UserDefaults.standard.set(id, forKey: Self.deviceIdKey)
-        return id
+    private var authListener: AuthStateDidChangeListenerHandle?
+    private var handling = Set<String>()
+    private var coordinator: ComputerUseRunCoordinator?
+    private weak var companion: CompanionController?
+    private var gate: ComputerUseInstallGate?
+    private var localDeviceID: String {
+        if let value = UserDefaults.standard.string(forKey: "caocap.deviceId") { return value }
+        let value = UUID().uuidString; UserDefaults.standard.set(value, forKey: "caocap.deviceId"); return value
     }
-
-    init() {
-        requestsEnabled = UserDefaults.standard.bool(forKey: Self.optInKey)
-    }
-
-    func attach(authManager: AuthenticationManager) {
-        observationTask?.cancel()
-        observationTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self else { return }
-                self.apply(authManager.authState)
-                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                    withObservationTracking {
-                        _ = authManager.authState
-                    } onChange: {
-                        continuation.resume()
-                    }
-                }
+    func attach(authManager: AuthenticationManager, coordinator: ComputerUseRunCoordinator, companion: CompanionController, gate: ComputerUseInstallGate) {
+        self.coordinator = coordinator; self.companion = companion; self.gate = gate
+        authListener = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            let next = user?.isAnonymous == false ? user?.uid : nil
+            Task { @MainActor in
+                guard let self, self.uid != next else { return }
+                self.coordinator?.cancel()
+                self.listener?.remove(); self.listener = nil; self.handling.removeAll()
+                self.epoch = UUID(); self.uid = next
+                self.requestsEnabled = next.map { UserDefaults.standard.bool(forKey: "caocap.enableIPhoneRequests.\($0)") } ?? false
             }
         }
     }
-
-    private func apply(_ state: MacAuthState) {
-        switch state {
-        case .signedIn(let uid):
-            signedInUID = uid
-            sync()
-        case .signedOut, .failed:
-            signedInUID = nil
-            stopListening()
-        }
-    }
-
     private func sync() {
-        if let uid = signedInUID, requestsEnabled {
-            startListening(uid: uid)
-        } else {
-            stopListening()
-        }
-    }
-
-    private func startListening(uid: String) {
-        if listener != nil { return }
-        listener = Firestore.firestore()
-            .collection("users")
-            .document(uid)
-            .collection("commands")
-            .whereField("status", isEqualTo: "pending")
-            .addSnapshotListener { [weak self] snapshot, error in
+        guard let uid, requestsEnabled else { listener?.remove(); listener = nil; return }
+        guard listener == nil else { return }
+        let currentEpoch = epoch
+        listener = Firestore.firestore().collection("users").document(uid).collection("commands")
+            .whereField("status", isEqualTo: "pending").addSnapshotListener { [weak self] snapshot, error in
                 Task { @MainActor in
-                    guard let self else { return }
-                    if let error {
-                        self.logger.error("Command listener failed: \(error.localizedDescription, privacy: .public)")
-                        return
-                    }
+                    guard let self, self.epoch == currentEpoch, self.requestsEnabled else { return }
+                    if error != nil { self.lastRequest = "Could not receive requests"; return }
                     for document in snapshot?.documents ?? [] {
-                        await self.handlePending(document)
+                        guard self.handling.insert(document.documentID).inserted else { continue }
+                        Task { await self.handle(document, uid: uid, epoch: currentEpoch) }
                     }
                 }
             }
     }
-
-    private func stopListening() {
-        listener?.remove()
-        listener = nil
-        claimingIDs.removeAll()
+    private func check(_ uid: String, _ epoch: UUID, allowDisabled: Bool = false) throws {
+        guard self.uid == uid, self.epoch == epoch, Auth.auth().currentUser?.uid == uid,
+              allowDisabled || requestsEnabled else { throw ComputerUseFailure.stoppedOnMac }
     }
-
-    private func handlePending(_ document: QueryDocumentSnapshot) async {
-        let id = document.documentID
-        guard claimingIDs.insert(id).inserted else { return }
-
-        let data = document.data()
-        let type = data["type"] as? String
-        let urlString = data["url"] as? String
-        guard let url = allowedOpenURL(type: type, urlString: urlString) else {
-            claimingIDs.remove(id)
-            logger.warning("Ignored command \(id, privacy: .public) with disallowed type or URL.")
-            return
-        }
-
-        do {
-            try await claim(document)
-            logger.info("Opening allowlisted URL \(url.absoluteString, privacy: .public)")
-            let opened = NSWorkspace.shared.open(url)
-            if opened {
-                try await complete(document.reference, status: "opened", timestampField: "openedAt")
-            } else {
-                try await complete(document.reference, status: "failed", timestampField: "failedAt")
-            }
-            claimingIDs.remove(id)
-        } catch {
-            logger.error("Command \(id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-            claimingIDs.remove(id)
-        }
-    }
-
-    private func allowedOpenURL(type: String?, urlString: String?) -> URL? {
-        if type == "openYouTube", urlString == YouTubeWatchURL.homepage {
-            return URL(string: YouTubeWatchURL.homepage)
-        }
-        if type == "openYouTubeVideo",
-           let canonical = YouTubeWatchURL.canonicalWatchURL(from: urlString) {
-            return URL(string: canonical)
-        }
-        if type == "openURL",
-           let canonical = AllowlistedOpenURL.canonicalDocumentationURL(from: urlString) {
-            return URL(string: canonical)
-        }
-        return nil
-    }
-
-    private func claim(_ document: QueryDocumentSnapshot) async throws {
-        let deviceId = localDeviceId
-        _ = try await Firestore.firestore().runTransaction { transaction, errorPointer in
-            let snapshot: DocumentSnapshot
+    private func transition(_ ref: DocumentReference, from statuses: [String], fields: [String: Any], uid: String, epoch: UUID, claim: Bool = false) async throws {
+        try check(uid, epoch, allowDisabled: fields["status"] as? String == "failed")
+        let deviceID = localDeviceID
+        _ = try await Firestore.firestore().runTransaction { tx, pointer in
             do {
-                snapshot = try transaction.getDocument(document.reference)
-            } catch {
-                errorPointer?.pointee = error as NSError
+                let data = try tx.getDocument(ref).data() ?? [:]
+                guard let status = data["status"] as? String, statuses.contains(status) else { throw ComputerUseFailure.reportingUnavailable }
+                if claim {
+                    guard let expires = data["expiresAt"] as? Timestamp, expires.dateValue() > Date() else { throw ComputerUseFailure.runTimeout }
+                } else if data["status"] as? String != "pending" {
+                    guard data["claimedByDeviceId"] as? String == deviceID else { throw ComputerUseFailure.reportingUnavailable }
+                }
+                if !fields.isEmpty { tx.updateData(fields, forDocument: ref) }
                 return nil
-            }
-            guard snapshot.data()?["status"] as? String == "pending" else {
-                errorPointer?.pointee = NSError(
-                    domain: "RemoteCommandRelay",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Command is no longer pending."]
-                )
-                return nil
-            }
-            transaction.updateData(
-                [
-                    "status": "claimed",
-                    "claimedByDeviceId": deviceId,
-                    "claimedAt": FieldValue.serverTimestamp()
-                ],
-                forDocument: document.reference
-            )
-            return nil
+            } catch { pointer?.pointee = error as NSError; return nil }
         }
     }
-
-    private func complete(_ reference: DocumentReference, status: String, timestampField: String) async throws {
-        try await reference.updateData([
-            "status": status,
-            timestampField: FieldValue.serverTimestamp()
-        ])
+    private func handle(_ document: QueryDocumentSnapshot, uid: String, epoch: UUID) async {
+        let id = document.documentID
+        guard let command = RemoteCommand.parse(id: id, data: document.data()) else { handling.remove(id); return }
+        let ref = document.reference
+        do {
+            try check(uid, epoch)
+            if command.expiresAt <= Date() {
+                try await transition(ref, from: ["pending"], fields: ["status": "expired", "finishedAt": FieldValue.serverTimestamp()], uid: uid, epoch: epoch)
+                handling.remove(id); return
+            }
+            try await transition(ref, from: ["pending"], fields: ["status": "claimed", "claimedAt": FieldValue.serverTimestamp(), "claimedByDeviceId": localDeviceID], uid: uid, epoch: epoch, claim: true)
+        } catch { handling.remove(id); return } // Never execute after an uncertain claim.
+        do {
+            try check(uid, epoch)
+            if let url = command.openURL {
+                let opened = NSWorkspace.shared.open(url)
+                var fields: [String: Any] = ["status": opened ? "opened" : "failed", "finishedAt": FieldValue.serverTimestamp()]
+                if !opened { fields["failureCode"] = "actionFailed" }
+                try await transition(ref, from: ["claimed"], fields: fields, uid: uid, epoch: epoch)
+                lastRequest = opened ? "Opened on this Mac" : "Could not open the link"
+                handling.remove(id); return
+            }
+            guard let summary = command.taskSummary, let coordinator else { throw ComputerUseFailure.setupIncomplete }
+            var steps: [[String: Any]] = []
+            var messageID: UUID?
+            _ = try await coordinator.start(request: .init(taskSummary: summary, commandID: id), origin: .remote, beforeStart: {
+                try self.check(uid, epoch)
+                try await self.transition(ref, from: ["claimed"], fields: ["status": "running", "startedAt": FieldValue.serverTimestamp()], uid: uid, epoch: epoch)
+                try self.check(uid, epoch)
+                messageID = self.companion?.cocaptainChat.beginRemoteRun(taskSummary: summary)
+                self.companion?.setPersona(.cocaptain)
+                self.companion?.setAwake(true)
+                self.companion?.openChat()
+                self.lastRequest = "Working on your iPhone request"
+            }, onEvent: { event in
+                do {
+                    switch event {
+                    case .checkpoint:
+                        try await self.transition(ref, from: ["running"], fields: [:], uid: uid, epoch: epoch)
+                        try self.check(uid, epoch)
+                    case .step(let step):
+                        steps.append(["index": steps.count + 1, "summary": step.summary])
+                        try await self.transition(ref, from: ["running"], fields: ["steps": steps], uid: uid, epoch: epoch)
+                    case .completed(let result, _):
+                        try await self.transition(ref, from: ["running"], fields: ["status": "completed", "result": result.firestoreData, "finishedAt": FieldValue.serverTimestamp()], uid: uid, epoch: epoch)
+                        self.lastRequest = "Saved \(result.fileName)"; self.handling.remove(id)
+                    case .failed(let failure):
+                        try await self.transition(ref, from: ["running"], fields: ["status": "failed", "failureCode": failure.rawValue, "finishedAt": FieldValue.serverTimestamp()], uid: uid, epoch: epoch)
+                        self.lastRequest = failure.localizedDescription; self.handling.remove(id)
+                    }
+                    if let messageID { self.companion?.cocaptainChat.receiveRunEvent(event, messageID: messageID) }
+                } catch {
+                    if let messageID { self.companion?.cocaptainChat.receiveRunEvent(.failed(.reportingUnavailable), messageID: messageID) }
+                    self.handling.remove(id)
+                    throw ComputerUseFailure.reportingUnavailable
+                }
+            })
+        } catch {
+            let failure = error as? ComputerUseFailure ?? .actionFailed
+            try? await transition(ref, from: ["claimed", "running"], fields: ["status": "failed", "failureCode": failure.rawValue, "finishedAt": FieldValue.serverTimestamp()], uid: uid, epoch: epoch)
+            lastRequest = failure.localizedDescription; handling.remove(id)
+            if failure == .setupIncomplete, let gate { ComputerUseSetupPresenter.present(installGate: gate) }
+            if failure == .noWorkspaceFolder { NotificationCenter.default.post(name: .showMainWindow, object: nil) }
+        }
     }
 }

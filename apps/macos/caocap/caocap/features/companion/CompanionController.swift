@@ -13,7 +13,7 @@ final class CompanionController {
 
     let play = CompanionPlay()
 
-    private let cocaptainChat = AgentChatSession(persona: .cocaptain)
+    let cocaptainChat = AgentChatSession(persona: .cocaptain)
     private let costarChat = AgentChatSession(persona: .costar)
 
     var chatSession: AgentChatSession {

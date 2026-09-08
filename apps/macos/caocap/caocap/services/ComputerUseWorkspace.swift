@@ -1,11 +1,12 @@
 import AppKit
 import OSLog
+import Observation
 
 /// The folder Agent-mode runs are allowed to produce files in, and where the result check looks.
 ///
 /// The app is sandboxed, so access comes from the user picking the folder. An app-scoped bookmark
 /// keeps that grant across launches — otherwise every single prompt would open a folder picker.
-@MainActor
+@MainActor @Observable
 final class ComputerUseWorkspace {
     private static let bookmarkKey = "computerUse.workspaceBookmark"
 
@@ -28,6 +29,10 @@ final class ComputerUseWorkspace {
     func forgetFolder() {
         defaults.removeObject(forKey: Self.bookmarkKey)
     }
+
+    func storedFolderOnly() -> URL? { storedFolder() }
+    var folderDisplayName: String { storedFolder()?.lastPathComponent ?? "Not chosen" }
+    @discardableResult func chooseFolder() -> URL? { promptForFolder() }
 
     private func storedFolder() -> URL? {
         guard let data = defaults.data(forKey: Self.bookmarkKey) else { return nil }
