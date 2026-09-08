@@ -11,16 +11,50 @@
 		4C89E7B63034180000976526 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7B73034180000976527 /* FirebaseAuth */; };
 		4C89E7B83034180000976528 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7B93034180000976529 /* FirebaseFirestore */; };
 		4C89E7BA3034180000976530 /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7BB3034180000976531 /* FirebaseAILogic */; };
+		5DCA00000000000000000030 /* FirebaseFunctions in Frameworks */ = {isa = PBXBuildFile; productRef = 5DCA00000000000000000031 /* FirebaseFunctions */; };
+		5DCA00000000000000000010 /* ComputerUseHelper.xpc in Embed XPC Services */ = {isa = PBXBuildFile; fileRef = 5DCA00000000000000000001 /* ComputerUseHelper.xpc */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5DCA00000000000000000012 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 4C89E7913034171D00976521 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5DCA00000000000000000003;
+			remoteInfo = ComputerUseHelper;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		5DCA00000000000000000011 /* Embed XPC Services */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/XPCServices";
+			dstSubfolderSpec = 16;
+			files = (
+				5DCA00000000000000000010 /* ComputerUseHelper.xpc in Embed XPC Services */,
+			);
+			name = "Embed XPC Services";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		4C89E7993034171D00976521 /* caocap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = caocap.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5DCA00000000000000000001 /* ComputerUseHelper.xpc */ = {isa = PBXFileReference; explicitFileType = "wrapper.xpc-service"; includeInIndex = 0; path = ComputerUseHelper.xpc; sourceTree = BUILT_PRODUCTS_DIR; };
+		5DCA00000000000000000020 /* ComputerUseHelper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ComputerUseHelper.entitlements; sourceTree = "<group>"; };
+		5DCA00000000000000000021 /* ComputerUseHelper-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "ComputerUseHelper-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		4C89E79B3034171D00976521 /* caocap */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = caocap;
+			sourceTree = "<group>";
+		};
+		5DCA00000000000000000002 /* ComputerUseHelper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ComputerUseHelper;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -34,6 +68,14 @@
 				4C89E7B63034180000976526 /* FirebaseAuth in Frameworks */,
 				4C89E7B83034180000976528 /* FirebaseFirestore in Frameworks */,
 				4C89E7BA3034180000976530 /* FirebaseAILogic in Frameworks */,
+				5DCA00000000000000000030 /* FirebaseFunctions in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5DCA00000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -44,6 +86,9 @@
 			isa = PBXGroup;
 			children = (
 				4C89E79B3034171D00976521 /* caocap */,
+				5DCA00000000000000000002 /* ComputerUseHelper */,
+				5DCA00000000000000000020 /* ComputerUseHelper.entitlements */,
+				5DCA00000000000000000021 /* ComputerUseHelper-Info.plist */,
 				4C89E79A3034171D00976521 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -52,6 +97,7 @@
 			isa = PBXGroup;
 			children = (
 				4C89E7993034171D00976521 /* caocap.app */,
+				5DCA00000000000000000001 /* ComputerUseHelper.xpc */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -66,10 +112,12 @@
 				4C89E7953034171D00976521 /* Sources */,
 				4C89E7963034171D00976521 /* Frameworks */,
 				4C89E7973034171D00976521 /* Resources */,
+				5DCA00000000000000000011 /* Embed XPC Services */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				5DCA00000000000000000013 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				4C89E79B3034171D00976521 /* caocap */,
@@ -80,10 +128,31 @@
 				4C89E7B73034180000976527 /* FirebaseAuth */,
 				4C89E7B93034180000976529 /* FirebaseFirestore */,
 				4C89E7BB3034180000976531 /* FirebaseAILogic */,
+				5DCA00000000000000000031 /* FirebaseFunctions */,
 			);
 			productName = caocap;
 			productReference = 4C89E7993034171D00976521 /* caocap.app */;
 			productType = "com.apple.product-type.application";
+		};
+		5DCA00000000000000000003 /* ComputerUseHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5DCA00000000000000000004 /* Build configuration list for PBXNativeTarget "ComputerUseHelper" */;
+			buildPhases = (
+				5DCA00000000000000000005 /* Sources */,
+				5DCA00000000000000000006 /* Frameworks */,
+				5DCA00000000000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				5DCA00000000000000000002 /* ComputerUseHelper */,
+			);
+			name = ComputerUseHelper;
+			productName = ComputerUseHelper;
+			productReference = 5DCA00000000000000000001 /* ComputerUseHelper.xpc */;
+			productType = "com.apple.product-type.xpc-service";
 		};
 /* End PBXNativeTarget section */
 
@@ -96,6 +165,9 @@
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
 					4C89E7983034171D00976521 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					5DCA00000000000000000003 = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -118,12 +190,20 @@
 			projectRoot = "";
 			targets = (
 				4C89E7983034171D00976521 /* caocap */,
+				5DCA00000000000000000003 /* ComputerUseHelper */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		4C89E7973034171D00976521 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5DCA00000000000000000007 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -140,7 +220,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		5DCA00000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5DCA00000000000000000013 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5DCA00000000000000000003 /* ComputerUseHelper */;
+			targetProxy = 5DCA00000000000000000012 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		4C89E7A23034171E00976521 /* Debug */ = {
@@ -277,7 +372,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -312,7 +407,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
+				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -329,6 +424,44 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		5DCA00000000000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ComputerUseHelper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6QYT6GJB4Z;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "ComputerUseHelper-Info.plist";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Ficruty.caocap.ComputerUseHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		5DCA00000000000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = ComputerUseHelper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6QYT6GJB4Z;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = "ComputerUseHelper-Info.plist";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.Ficruty.caocap.ComputerUseHelper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -350,6 +483,15 @@
 			buildConfigurations = (
 				4C89E7A53034171E00976521 /* Debug */,
 				4C89E7A63034171E00976521 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		5DCA00000000000000000004 /* Build configuration list for PBXNativeTarget "ComputerUseHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5DCA00000000000000000008 /* Debug */,
+				5DCA00000000000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -387,6 +529,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4C89E7B43034180000976524 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseAILogic;
+		};
+		5DCA00000000000000000031 /* FirebaseFunctions */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C89E7B43034180000976524 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFunctions;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -122,20 +122,27 @@ See [macOS setup and current behavior](../apps/macos/README.md). The initial cha
 
 ## Phase 3 — Complete one computer-use task end to end
 
-**Status:** Not started
+**Status:** In progress (Sub-phases A and B done and build-verified; see `apps/macos/caocap/ComputerUseHelper/`)
 **Depends on:** Phase 2
 
 **Outcome:** The user gives CoCaptain a request, the Agent operates a chosen application, and the user can inspect the completed work.
 
-### Decisions to settle
+### Decisions settled
 
-- Select one target application, one task, and an observable definition of success.
-- Choose the execution environment: the user's current Mac desktop or a separate computer workspace. This remains open; the chat layout does not decide it.
-- Select a computer-use runtime and confirm feasibility with the app's macOS permissions, sandbox, and distribution approach.
-- Define how the user sees current activity, stops execution, handles requests for input, and takes back control.
-- Agree how hiding chat, hiding the Agent, or quitting affects an active task.
+- Target application/task: TextEdit — create a short packing list, save to a user-selected folder (the original candidate task, confirmed).
+- Execution environment: the user's current Mac desktop, driven directly (no separate/isolated workspace).
+- Computer-use runtime: OpenAI's `computer-use-preview` model (Responses API) for reasoning, driving `cua-driver` (github.com/trycua/cua, MIT) as the local execution layer for screenshots/clicks/keystrokes on real apps.
+- Sandbox/distribution: the main app stays sandboxed; a new unsandboxed `ComputerUseHelper` XPC service (own bundle ID, own entitlements) holds Accessibility/Screen Recording permissions and runs `cua-driver`, talking to the sandboxed app over `NSXPCConnection`. This requires Developer ID / direct distribution rather than Mac App Store.
+- cua-driver is currently expected to already be installed by the user (`curl -fsSL https://cua.ai/driver/install.sh | sh`, run by the user in Terminal, never by CAOCAP itself) — not bundled with the app.
 
-**Candidate task to discuss:** Ask CoCaptain to create a short packing list in TextEdit and save it to a user-selected folder. The user opens the saved document and checks its contents. This is an example, not a selected requirement.
+### Known follow-up (not blocking this phase)
+
+- **Bundle cua-driver instead of requiring a manual install.** Today `ComputerUseInstallGate`/`ComputerUseSetupSheet` ask the user to install cua-driver themselves — fine for proving the mechanism, not a real first-run experience. Before any real distribution: vendor a specific pinned cua-driver build (built from source in CI, or a checksummed release artifact — never a `curl \| sh` run automatically, whether on the user's machine or ours) into the app, and re-sign it under CAOCAP's own Developer ID as part of the archive/notarize step (Gatekeeper requires every embedded executable to be signed that way). Deferred until the OpenAI/`cua-driver` integration itself is confirmed working, so we don't lock in a vendored binary against assumptions that later turn out wrong.
+
+### Decisions still open
+
+- Define how the user sees current activity, stops execution, handles requests for input, and takes back control. (In progress — Sub-phase D.)
+- Agree how hiding chat, hiding the Agent, or quitting affects an active task. (Not yet addressed.)
 
 ### Work
 

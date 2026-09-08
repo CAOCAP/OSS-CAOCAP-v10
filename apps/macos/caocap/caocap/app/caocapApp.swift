@@ -6,7 +6,9 @@
 //
 
 import AppKit
+import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Keeps the process alive after the last window closes so the status item stays in the menu bar.
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -14,6 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let authenticationManager = AuthenticationManager()
     let devicePresence = DevicePresence()
     let remoteCommandRelay = RemoteCommandRelay()
+    let computerUseHelperClient = ComputerUseHelperClient()
+    let openAIComputerUseClient = OpenAIComputerUseClient()
+    lazy var computerUseInstallGate = ComputerUseInstallGate(helperClient: computerUseHelperClient)
+    lazy var computerUseAgentService = ComputerUseAgentService(
+        helperClient: computerUseHelperClient,
+        openAIClient: openAIComputerUseClient
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FirebaseConfiguration.configure()
@@ -59,7 +68,10 @@ struct caocapApp: App {
                 companion: appDelegate.companion,
                 authenticationManager: appDelegate.authenticationManager,
                 devicePresence: appDelegate.devicePresence,
-                remoteCommandRelay: appDelegate.remoteCommandRelay
+                remoteCommandRelay: appDelegate.remoteCommandRelay,
+                computerUseHelperClient: appDelegate.computerUseHelperClient,
+                computerUseInstallGate: appDelegate.computerUseInstallGate,
+                computerUseAgentService: appDelegate.computerUseAgentService
             )
         } label: {
             StatusItemLabel()
@@ -88,6 +100,9 @@ private struct StatusItemMenu: View {
     @Bindable var authenticationManager: AuthenticationManager
     @Bindable var devicePresence: DevicePresence
     @Bindable var remoteCommandRelay: RemoteCommandRelay
+    let computerUseHelperClient: ComputerUseHelperClient
+    @Bindable var computerUseInstallGate: ComputerUseInstallGate
+    @Bindable var computerUseAgentService: ComputerUseAgentService
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -97,11 +112,95 @@ private struct StatusItemMenu: View {
         }
         Divider()
         accountMenuItems
+        #if DEBUG
+        Divider()
+        Button("Ping Computer Use Helper") {
+            Task { await pingComputerUseHelper() }
+        }
+        Button("Capture Screenshot (TextEdit)") {
+            Task { await captureComputerUseScreenshot() }
+        }
+        Button("Run Packing List Task (debug)") {
+            runComputerUseDebugTask()
+        }
+        .disabled(computerUseAgentService.isRunning)
+        if computerUseAgentService.isRunning {
+            Button("Stop Computer Use Task") {
+                computerUseAgentService.stop()
+            }
+        }
+        #endif
         Divider()
         Button("Quit CAOCAP") {
             NSApp.terminate(nil)
         }
     }
+
+    #if DEBUG
+    private func pingComputerUseHelper() async {
+        let logger = Logger(subsystem: "com.caocap.app", category: "ComputerUseHelperDebugMenu")
+        do {
+            let reply = try await computerUseHelperClient.ping()
+            logger.info("ComputerUseHelper ping reply: \(reply, privacy: .public)")
+        } catch {
+            logger.error("ComputerUseHelper ping failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func captureComputerUseScreenshot() async {
+        let logger = Logger(subsystem: "com.caocap.app", category: "ComputerUseHelperDebugMenu")
+        await computerUseInstallGate.refresh()
+        guard computerUseInstallGate.isReady else {
+            ComputerUseSetupPresenter.present(installGate: computerUseInstallGate)
+            return
+        }
+        do {
+            let png = try await computerUseHelperClient.captureScreenshot(bundleIdentifier: "com.apple.TextEdit")
+            presentSavePanel(pngData: png)
+        } catch {
+            logger.error("Capture screenshot failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func runComputerUseDebugTask() {
+        let logger = Logger(subsystem: "com.caocap.app", category: "ComputerUseHelperDebugMenu")
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.prompt = "Choose Folder"
+        panel.message = "Choose where CoCaptain should save the packing list."
+        panel.begin { response in
+            guard response == .OK, let folderURL = panel.url else { return }
+            self.computerUseAgentService.start(
+                taskSummary: "Create a new document in TextEdit with a short packing list for a "
+                    + "weekend camping trip (5-8 items), then save it in the selected folder.",
+                folderURL: folderURL,
+                onStep: { step in
+                    logger.info("Step \(step.index, privacy: .public): \(step.summary, privacy: .public)")
+                },
+                onStateChange: { state in
+                    logger.info("State: \(String(describing: state), privacy: .public)")
+                }
+            )
+        }
+    }
+
+    private func presentSavePanel(pngData: Data) {
+        let logger = Logger(subsystem: "com.caocap.app", category: "ComputerUseHelperDebugMenu")
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "computer-use-debug-screenshot.png"
+        panel.allowedContentTypes = [.png]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try pngData.write(to: url)
+            } catch {
+                logger.error("Failed to save screenshot: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+    #endif
 
     @ViewBuilder
     private var accountMenuItems: some View {
