@@ -6,7 +6,6 @@ import OSLog
 @MainActor
 @Observable
 final class ComputerUseInstallGate {
-    static let installCommand = "curl -fsSL https://cua.ai/driver/install.sh | sh"
 
     private(set) var status: ComputerUseDriverStatus?
 
@@ -17,7 +16,6 @@ final class ComputerUseInstallGate {
 
     var isReady: Bool {
         status?.installed == true
-            && status?.running == true
             && status?.accessibilityGranted == true
             && status?.screenRecordingGranted == true
     }

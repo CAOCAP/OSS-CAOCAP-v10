@@ -12,7 +12,7 @@ struct ComputerUseSetupSheet: View {
     @State private var didCopy = false
 
     private var needsInstall: Bool {
-        installGate.status?.installed != true || installGate.status?.running != true
+        installGate.status?.installed != true
     }
 
     var body: some View {
@@ -25,21 +25,7 @@ struct ComputerUseSetupSheet: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                HStack {
-                    Text(ComputerUseInstallGate.installCommand)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-
-                    Button(didCopy ? "Copied" : "Copy") {
-                        copyInstallCommand()
-                    }
-                }
-
-                Text("Run this in Terminal, then check again.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Install a complete CAOCAP download, which includes its verified driver.").font(.caption)
             } else {
                 Text("Computer use needs permission")
                     .font(.headline)
@@ -67,13 +53,6 @@ struct ComputerUseSetupSheet: View {
         }
         .padding(20)
         .frame(width: 420)
-    }
-
-    private func copyInstallCommand() {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(ComputerUseInstallGate.installCommand, forType: .string)
-        didCopy = true
     }
 
     private func checkAgain() async {

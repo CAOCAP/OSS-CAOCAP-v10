@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import GoogleSignIn
 import OSLog
 import SwiftUI
 import UniformTypeIdentifiers
@@ -25,13 +26,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openAIClient: openAIComputerUseClient
     )
 
+    lazy var computerUseCoordinator = ComputerUseRunCoordinator(service: computerUseAgentService, gate: computerUseInstallGate, workspace: computerUseWorkspace)
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls { _ = GIDSignIn.sharedInstance.handle(url) }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        computerUseCoordinator.cancel()
+        computerUseHelperClient.shutdown()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         FirebaseConfiguration.configure()
         authenticationManager.start()
         devicePresence.attach(authManager: authenticationManager)
-        remoteCommandRelay.attach(authManager: authenticationManager)
+        remoteCommandRelay.attach(authManager: authenticationManager, coordinator: computerUseCoordinator, companion: companion, gate: computerUseInstallGate)
         companion.attachComputerUse(ComputerUseContext(
             agentService: computerUseAgentService,
+            coordinator: computerUseCoordinator,
             installGate: computerUseInstallGate,
             workspace: computerUseWorkspace
         ))
@@ -60,7 +73,9 @@ struct caocapApp: App {
 
     var body: some Scene {
         Window("CAOCAP", id: "main") {
-            ContentView()
+            ContentView(authentication: appDelegate.authenticationManager, devices: appDelegate.devicePresence,
+                relay: appDelegate.remoteCommandRelay, gate: appDelegate.computerUseInstallGate,
+                workspace: appDelegate.computerUseWorkspace)
         }
         .commands {
             CommandMenu("Agent") {
@@ -77,7 +92,7 @@ struct caocapApp: App {
                 remoteCommandRelay: appDelegate.remoteCommandRelay,
                 computerUseHelperClient: appDelegate.computerUseHelperClient,
                 computerUseInstallGate: appDelegate.computerUseInstallGate,
-                computerUseAgentService: appDelegate.computerUseAgentService
+                computerUseCoordinator: appDelegate.computerUseCoordinator
             )
         } label: {
             StatusItemLabel()
@@ -108,7 +123,7 @@ private struct StatusItemMenu: View {
     @Bindable var remoteCommandRelay: RemoteCommandRelay
     let computerUseHelperClient: ComputerUseHelperClient
     @Bindable var computerUseInstallGate: ComputerUseInstallGate
-    @Bindable var computerUseAgentService: ComputerUseAgentService
+    @Bindable var computerUseCoordinator: ComputerUseRunCoordinator
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -129,13 +144,11 @@ private struct StatusItemMenu: View {
         Button("Run Packing List Task (debug)") {
             runComputerUseDebugTask()
         }
-        .disabled(computerUseAgentService.isRunning)
-        if computerUseAgentService.isRunning {
-            Button("Stop Computer Use Task") {
-                computerUseAgentService.stop()
-            }
-        }
+        .disabled(computerUseCoordinator.isRunning)
         #endif
+        if computerUseCoordinator.isRunning {
+            Button("Stop Computer Use Task") { computerUseCoordinator.cancel() }
+        }
         Divider()
         Button("Quit CAOCAP") {
             NSApp.terminate(nil)
@@ -169,27 +182,10 @@ private struct StatusItemMenu: View {
     }
 
     private func runComputerUseDebugTask() {
-        let logger = Logger(subsystem: "com.caocap.app", category: "ComputerUseHelperDebugMenu")
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.canCreateDirectories = true
-        panel.prompt = "Choose Folder"
-        panel.message = "Choose where CoCaptain should save the packing list."
-        panel.begin { response in
-            guard response == .OK, let folderURL = panel.url else { return }
-            self.computerUseAgentService.start(
-                taskSummary: "Create a new document in TextEdit with a short packing list for a "
-                    + "weekend camping trip (5-8 items), then save it in the selected folder.",
-                folderURL: folderURL,
-                onStep: { step in
-                    logger.info("Step \(step.index, privacy: .public): \(step.summary, privacy: .public)")
-                },
-                onStateChange: { state in
-                    logger.info("State: \(String(describing: state), privacy: .public)")
-                }
-            )
-        }
+        companion.cocaptainChat.mode = .agent
+        companion.cocaptainChat.draft = "Write a short packing list for a weekend camping trip."
+        companion.cocaptainChat.submitDraft()
+        companion.openChat()
     }
 
     private func presentSavePanel(pngData: Data) {

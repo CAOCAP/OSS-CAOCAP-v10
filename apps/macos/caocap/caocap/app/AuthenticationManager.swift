@@ -1,4 +1,7 @@
 import AuthenticationServices
+import AppKit
+import FirebaseCore
+import GoogleSignIn
 import FirebaseAuth
 import Observation
 import OSLog
@@ -20,6 +23,9 @@ final class AuthenticationManager {
     private(set) var isSigningIn = false
 
     private let logger = Logger(subsystem: "com.caocap.app", category: "Auth")
+    let githubSignIn = GitHubSignInCoordinator()
+    var identityLabel: String { Auth.auth().currentUser?.email ?? Auth.auth().currentUser?.displayName ?? "Signed-in account" }
+
     private let appleSignIn = AppleSignInCoordinator()
     private let listenerCanceller = ListenerCanceller()
 
@@ -50,7 +56,29 @@ final class AuthenticationManager {
         }
     }
 
+    func signInWithGoogle() async {
+        guard !isSigningIn, let window = NSApp.keyWindow ?? NSApp.windows.first else { return }
+        isSigningIn = true
+        defer { isSigningIn = false }
+        do {
+            guard let clientID = FirebaseApp.app()?.options.clientID else { throw ComputerUseFailure.serviceUnavailable }
+            GIDSignIn.sharedInstance.configuration = GIDConfiguration(clientID: clientID)
+            let result = try await GIDSignIn.sharedInstance.signIn(withPresenting: window)
+            guard let token = result.user.idToken?.tokenString else { throw ComputerUseFailure.serviceUnavailable }
+            _ = try await Auth.auth().signIn(with: GoogleAuthProvider.credential(withIDToken: token, accessToken: result.user.accessToken.tokenString))
+        } catch { authState = .failed(message: error.localizedDescription) }
+    }
+    func signInWithGitHub() async {
+        guard !isSigningIn else { return }
+        isSigningIn = true
+        defer { isSigningIn = false }
+        do { _ = try await Auth.auth().signIn(with: githubSignIn.credential()) }
+        catch is CancellationError { authState = .signedOut }
+        catch { authState = .failed(message: error.localizedDescription) }
+    }
     func signOut() {
+        githubSignIn.cancel()
+        GIDSignIn.sharedInstance.signOut()
         do {
             try Auth.auth().signOut()
             authState = .signedOut

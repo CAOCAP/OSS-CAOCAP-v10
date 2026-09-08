@@ -76,6 +76,7 @@ public final class CoCaptainReviewLifecycle {
     /// Ordered domain effects emitted by a successful lifecycle transition.
     public enum Effect: Hashable {
         case appActionPerformed(itemID: UUID, result: AppActionResult)
+        case remoteTaskApproved(itemID: UUID, taskSummary: String)
         case rejected(itemID: UUID)
         case conflicted(itemID: UUID, description: String)
         case learningNote(itemID: UUID, note: CoCaptainLearningNote)
@@ -249,7 +250,7 @@ public final class CoCaptainReviewLifecycle {
                     "Awaiting approval to run %@.",
                     arguments: [definition.localizedTitle]
                 ),
-                preview: actionPreview(for: action, definition: definition),
+                preview: actionID == .runComputerUseOnMac ? (action.args?["taskSummary"] ?? "Missing task summary") : actionPreview(for: action, definition: definition),
                 source: .appAction(actionID, action.args)
             )
         }
@@ -356,6 +357,15 @@ public final class CoCaptainReviewLifecycle {
                             "This action is no longer available."
                         )
                     )
+                }
+                if actionID == .runComputerUseOnMac {
+                    let summary = (arguments?["taskSummary"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !summary.isEmpty, summary.utf16.count <= 500 else {
+                        return conflict(&item, description: "Describe the document to write in 1–500 characters.")
+                    }
+                    item.status = .applied
+                    item.conflictDescription = nil
+                    return [.remoteTaskApproved(itemID: item.id, taskSummary: summary)]
                 }
                 let result = dispatcher.perform(
                     actionID,

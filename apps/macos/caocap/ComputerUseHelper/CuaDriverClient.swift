@@ -1,4 +1,13 @@
+import AppKit
+import ApplicationServices
 import Foundation
+
+/// Long-standing private AX SPI. It is the only way to map an AXUIElement to its
+/// CGWindowID without CGWindowListCopyWindowInfo, which silently returns nothing
+/// for other apps unless the calling process holds Screen Recording. We ship
+/// Developer ID, not App Store, and fall back to the public path if it fails.
+@_silgen_name("_AXUIElementGetWindow")
+private func _AXUIElementGetWindow(_ element: AXUIElement, _ identifier: UnsafeMutablePointer<CGWindowID>) -> AXError
 
 struct ComputerUseDriverStatus: Codable {
     let installed: Bool
@@ -7,322 +16,297 @@ struct ComputerUseDriverStatus: Codable {
     let screenRecordingGranted: Bool
 }
 
-/// Talks to the externally-installed `cua-driver` binary (github.com/trycua/cua, v0.24.0).
-/// This project never runs cua-driver's own installer — the user installs it by hand.
-///
-/// CLI surface confirmed empirically via `cua-driver manifest --pretty` and `cua-driver describe
-/// <tool>` on the installed 0.24.0 binary (Sep 2026): `cua-driver serve` starts a persistent
-/// daemon; `cua-driver call <tool> '<json>'` invokes one tool against that daemon (the `call`
-/// subcommand prefix is required — there is no bare `cua-driver <tool>` form). Tool names/params
-/// below match `describe`'s output for this version; a future cua-driver release could still
-/// change them.
-final class CuaDriverClient {
-    private static let binaryCandidatePaths = [
-        "/usr/local/bin/cua-driver",
-        "/opt/homebrew/bin/cua-driver",
-        "\(NSHomeDirectory())/.local/bin/cua-driver",
-    ]
+/// Owns a bundled runtime, never the user's global cua-driver daemon.
+final class CuaDriverClient: @unchecked Sendable {
+    private let lock = NSLock()
+    private var activeProcess: Process?
+    private var cancelled = false
+    private var documentURL: URL?
+    private var daemon: Process?
+    private let socketDirectory = CuaDriverClient.makeSocketDirectory()
+    private var socket: String { socketDirectory.appendingPathComponent(Self.socketName).path }
 
-    private var serveProcess: Process?
+    static let socketName = "driver.sock"
+    /// sockaddr_un.sun_path is 104 bytes on Darwin, including the terminator.
+    static let maxSocketPathLength = 103
 
-    func status() -> ComputerUseDriverStatus {
-        guard Self.resolvedBinaryPath() != nil else {
-            return ComputerUseDriverStatus(installed: false, running: false, accessibilityGranted: false, screenRecordingGranted: false)
-        }
-        guard let permissionsData = try? callTool("check_permissions", argsJSON: ["prompt": false]),
-              let json = try? JSONSerialization.jsonObject(with: permissionsData) as? [String: Any] else {
-            return ComputerUseDriverStatus(installed: true, running: false, accessibilityGranted: false, screenRecordingGranted: false)
-        }
-        return ComputerUseDriverStatus(
-            installed: true,
-            running: true,
-            accessibilityGranted: json["accessibility"] as? Bool ?? false,
-            screenRecordingGranted: json["screen_recording"] as? Bool ?? false
-        )
+    /// Builds a socket directory whose full socket path fits in `sun_path`.
+    ///
+    /// The default temporary directory already costs ~49 characters in the helper
+    /// and ~64 inside the sandboxed app's container, so appending a full 36-character
+    /// UUID pushes the socket past the limit. `bind` then fails with
+    /// "path must be shorter than SUN_LEN", the daemon never comes up, and the user
+    /// is told to finish setup -- which is not the problem at all.
+    static func makeSocketDirectory(
+        base: URL = URL(fileURLWithPath: NSTemporaryDirectory()),
+        token: String = String(UUID().uuidString.prefix(8))
+    ) -> URL {
+        let preferred = base.appendingPathComponent("caocap-\(token)")
+        if socketPathFits(preferred) { return preferred }
+        // /tmp keeps the prefix to five characters when the container path cannot.
+        return URL(fileURLWithPath: "/tmp").appendingPathComponent("caocap-\(token)")
     }
 
-    func ensureDaemonRunning() throws {
-        guard let binaryPath = Self.resolvedBinaryPath() else {
-            throw CuaDriverClientError.notInstalled
-        }
-        guard (try? callTool("list_apps", argsJSON: [:])) == nil else { return }
+    static func socketPathFits(_ directory: URL) -> Bool {
+        directory.appendingPathComponent(socketName).path.utf8.count <= maxSocketPathLength
+    }
+    private var binary: URL? {
+        let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/cua-driver")
+        if FileManager.default.isExecutableFile(atPath: bundled.path) { return bundled }
+        #if DEBUG
+        if let explicit = ProcessInfo.processInfo.environment["CAOCAP_DRIVER_PATH"], FileManager.default.isExecutableFile(atPath: explicit) { return URL(fileURLWithPath: explicit) }
+        #endif
+        return nil
+    }
 
+    func status() -> ComputerUseDriverStatus {
+        ComputerUseDriverStatus(installed: binary != nil, running: daemon?.isRunning == true,
+            accessibilityGranted: AXIsProcessTrusted(), screenRecordingGranted: CGPreflightScreenCaptureAccess())
+    }
+    func requestPermissions() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+        _ = CGRequestScreenCaptureAccess()
+    }
+    /// Spawns the bundled driver from this unsandboxed helper. The main app is
+    /// sandboxed, and a sandboxed parent would pass its sandbox to the child --
+    /// which can then never hold Accessibility or Screen Recording.
+    func ensureDaemonRunning() throws {
+        if daemon?.isRunning == true { return }
+        guard let binary else { throw DriverError("setupIncomplete") }
+        try FileManager.default.createDirectory(
+            at: socketDirectory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]
+        )
+        try? FileManager.default.removeItem(atPath: socket)
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: binaryPath)
-        process.arguments = ["serve"]
+        process.executableURL = binary
+        // TCC rolls an embedded XPC service's responsibility up to its containing app.
+        process.arguments = ["serve", "--embedded", "--host-bundle-id", "com.Ficruty.caocap", "--socket", socket]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
-        serveProcess = process
-
-        // Give the daemon a moment to bind before the first tool call.
-        Thread.sleep(forTimeInterval: 0.5)
+        daemon = process
+        for _ in 0..<50 {
+            if FileManager.default.fileExists(atPath: socket) { return }
+            guard process.isRunning else { break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        terminateDaemon()
+        throw DriverError("setupIncomplete")
     }
-
-    /// Requests the OS Accessibility/Screen Recording prompts if not already granted.
-    func requestPermissions() throws {
-        _ = try callTool("check_permissions", argsJSON: ["prompt": true])
+    private func terminateDaemon() {
+        if let daemon, daemon.isRunning { daemon.terminate() }
+        daemon = nil
+        try? FileManager.default.removeItem(at: socketDirectory)
     }
-
-    /// Captures a screenshot of the first on-screen window belonging to `bundleIdentifier`'s process.
-    /// Throws `CuaDriverClientError.noMatchingWindow` if the app isn't running / has no windows.
+    func prepareDocument(path: String) throws {
+        lock.withLock { cancelled = false }
+        let url = URL(fileURLWithPath: path).standardizedFileURL
+        guard url.lastPathComponent.hasPrefix("CAOCAP-"), url.pathExtension == "txt",
+              let data = FileManager.default.contents(atPath: url.path), data.isEmpty,
+              try url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink != true else { throw DriverError("documentChanged") }
+        documentURL = url
+        try ensureDaemonRunning()
+        _ = try execute(URL(fileURLWithPath: "/usr/bin/open"), ["-a", "TextEdit", url.path], timeout: 10)
+        for _ in 0..<120 {
+            if (try? target()) != nil { return }
+            try checkCancellation()
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        throw DriverError("documentChanged")
+    }
     func captureScreenshot(bundleIdentifier: String) throws -> Data {
-        let (pid, windowID) = try resolveTarget(bundleIdentifier: bundleIdentifier)
-
-        let tempPath = NSTemporaryDirectory() + "cua-screenshot-\(UUID().uuidString).png"
-        defer { try? FileManager.default.removeItem(atPath: tempPath) }
-
-        _ = try callTool("get_window_state", argsJSON: [
-            "pid": pid,
-            "window_id": windowID,
-            "include_accessibility_tree": false,
-            "screenshot_out_file": tempPath,
-        ])
-
-        guard let data = FileManager.default.contents(atPath: tempPath) else {
-            throw CuaDriverClientError.unexpectedResponse
+        guard bundleIdentifier == "com.apple.TextEdit" else { throw DriverError("unsupportedTarget") }
+        let target = try target()
+        let temp = socketDirectory.appendingPathComponent("frame-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let response = try call("get_window_state", ["pid": target.pid, "window_id": target.window, "include_accessibility_tree": false,
+            "max_dimension": 1600, "screenshot_out_file": temp.path, "session": "caocap"])
+        guard let data = try? Data(contentsOf: temp) else {
+            // The driver omits an unprovable capture and still exits 0, naming the
+            // reason (px_capture_unavailable / px_frame_mismatch) in its response.
+            recordTargetFailure("no screenshot written; driver said: \(String(decoding: response, as: UTF8.self).prefix(1500))")
+            throw DriverError("actionFailed")
+        }
+        guard data.count <= 4_194_304 else {
+            recordTargetFailure("screenshot too large: \(data.count) bytes")
+            throw DriverError("actionFailed")
         }
         return data
     }
-
-    /// Launches the app (in the background, per cua-driver's own default) and then explicitly
-    /// brings it forward — `launch_app` alone deliberately never steals focus, but this phase
-    /// needs the user to actually see CoCaptain working, and foregrounded interaction with
-    /// dialogs/sheets is more reliable than fully-backgrounded automation.
-    func launchApp(bundleIdentifier: String) throws {
-        _ = try callTool("launch_app", argsJSON: ["bundle_id": bundleIdentifier])
-        if let appsData = try? callTool("list_apps", argsJSON: [:]),
-           let pid = Self.firstRunningPID(forBundleIdentifier: bundleIdentifier, in: appsData) {
-            _ = try? callTool("bring_to_front", argsJSON: ["pid": pid])
-        }
-    }
-
-    /// Translates one model-issued action (see computerUseTools in firebase/functions/src/index.ts)
-    /// into the matching cua-driver tool call.
     func performAction(_ action: [String: Any], bundleIdentifier: String) throws {
-        guard let type = action["type"] as? String else {
-            throw CuaDriverClientError.unexpectedResponse
-        }
-
-        let (pid, windowID) = try resolveTarget(bundleIdentifier: bundleIdentifier)
-
-        switch type {
-        case "click":
-            _ = try callTool("click", argsJSON: [
-                "pid": pid,
-                "window_id": windowID,
-                "x": action["x"] as? Int ?? 0,
-                "y": action["y"] as? Int ?? 0,
-                "button": action["button"] as? String ?? "left",
-            ])
-        case "double_click":
-            _ = try callTool("double_click", argsJSON: [
-                "pid": pid,
-                "window_id": windowID,
-                "x": action["x"] as? Int ?? 0,
-                "y": action["y"] as? Int ?? 0,
-            ])
+        guard bundleIdentifier == "com.apple.TextEdit" else { throw DriverError("unsupportedTarget") }
+        let target = try target()
+        let base: [String: Any] = ["pid": target.pid, "window_id": target.window, "session": "caocap"]
+        switch action["type"] as? String {
         case "type":
-            _ = try callTool("type_text", argsJSON: [
-                "pid": pid,
-                "window_id": windowID,
-                "text": action["text"] as? String ?? "",
-            ])
+            guard let text = action["text"] as? String, !text.isEmpty, text.utf16.count <= 8000 else { throw DriverError("invalidModelAction") }
+            _ = try call("type_text", base.merging(["text": text]) { _, new in new })
         case "keypress":
-            let keys = action["keys"] as? [String] ?? []
-            if keys.count <= 1 {
-                _ = try callTool("press_key", argsJSON: [
-                    "pid": pid,
-                    "window_id": windowID,
-                    "key": keys.first ?? "",
-                ])
-            } else {
-                _ = try callTool("hotkey", argsJSON: [
-                    "pid": pid,
-                    "window_id": windowID,
-                    "keys": keys,
-                ])
-            }
-        case "scroll":
-            _ = try callTool("scroll", argsJSON: [
-                "pid": pid,
-                "window_id": windowID,
-                "direction": action["direction"] as? String ?? "down",
-                "amount": action["amount"] as? Int ?? 3,
-                "by": action["by"] as? String ?? "line",
-            ])
-        case "wait":
-            Thread.sleep(forTimeInterval: 1.0)
-        default:
-            throw CuaDriverClientError.unsupportedAction(type)
+            guard let keys = action["keys"] as? [String], ["cmd+s", "cmd+a", "left", "right", "up", "down", "backspace", "enter"].contains(keys.joined(separator: "+")) else { throw DriverError("invalidModelAction") }
+            let tool = keys.count == 1 ? "press_key" : "hotkey"
+            let args: [String: Any] = keys.count == 1 ? ["key": keys[0]] : ["keys": keys]
+            _ = try call(tool, base.merging(args) { _, new in new })
+        case "wait": Thread.sleep(forTimeInterval: 0.25)
+        default: throw DriverError("invalidModelAction")
         }
+        try checkCancellation()
+        _ = try self.target()
+    }
+    func cancel() {
+        lock.lock(); cancelled = true; let process = activeProcess; lock.unlock()
+        if process?.isRunning == true { process?.terminate() }
+    }
+    func shutdown() {
+        cancel()
+        documentURL = nil
+        terminateDaemon()
+    }
+    private func checkCancellation() throws {
+        if lock.withLock({ cancelled }) { throw DriverError("stoppedOnMac") }
+    }
+    private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
+        return value
+    }
+    private func editor(in element: AXUIElement, depth: Int = 0) -> AXUIElement? {
+        guard depth < 12 else { return nil }
+        if attribute(element, kAXRoleAttribute) as? String == kAXTextAreaRole { return element }
+        for child in attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] {
+            if let result = editor(in: child, depth: depth + 1) { return result }
+        }
+        return nil
+    }
+    /// AXDocument is a file URL string on some apps and a bare POSIX path on
+    /// others. Comparing `URL` values directly makes the bare-path case never
+    /// match, and the volume is case-insensitive, so normalize both sides to a
+    /// resolved path and compare that instead.
+    static func normalizedDocumentPath(_ raw: String) -> String? {
+        guard !raw.isEmpty else { return nil }
+        let url: URL
+        if raw.lowercased().hasPrefix("file://") {
+            guard let parsed = URL(string: raw) else { return nil }
+            url = parsed
+        } else {
+            url = URL(fileURLWithPath: raw)
+        }
+        return url.standardizedFileURL.resolvingSymlinksInPath().path
     }
 
-    /// Resolves the window to act on, restricted to the target app plus the system panel service.
-    ///
-    /// A native Open/Save panel from a sandboxed app is hosted out-of-process and belongs to
-    /// `com.apple.appkit.xpc.openAndSavePanelService`, not the app itself (per `describe
-    /// get_window_state`'s `window_owner_pid_mismatch` note), so a target-pid-only lookup would
-    /// miss the save sheet this task depends on. Picking the globally frontmost window instead
-    /// would hand the model any app that happens to be in front — including CAOCAP's own chat —
-    /// so the candidate set is the union of the two, ranked by z_index.
-    ///
-    /// Residual limitation: the panel service is shared by every sandboxed app, so a save panel
-    /// belonging to an unrelated app could still win if it is frontmost at that moment.
-    private func resolveTarget(bundleIdentifier: String) throws -> (pid: Int, windowID: Int) {
-        let appsData = try callTool("list_apps", argsJSON: [:])
-        guard let targetPID = Self.firstRunningPID(forBundleIdentifier: bundleIdentifier, in: appsData) else {
-            throw CuaDriverClientError.noMatchingWindow
-        }
-
-        var candidatePIDs: Set<Int> = [targetPID]
-        for host in Self.panelHostBundleIdentifiers {
-            if let hostPID = Self.firstRunningPID(forBundleIdentifier: host, in: appsData) {
-                candidatePIDs.insert(hostPID)
-            }
-        }
-
-        let windowsData = try callTool("list_windows", argsJSON: ["on_screen_only": true])
-        guard let window = Self.frontmostWindow(in: windowsData, limitedTo: candidatePIDs) else {
-            throw CuaDriverClientError.noMatchingWindow
-        }
-        return window
+    private func recordTargetFailure(_ reason: String) {
+        #if DEBUG
+        // Every branch below reports the same `documentChanged` code on the wire,
+        // which makes a real failure impossible to tell apart from five others.
+        try? reason.appending("\n").write(
+            toFile: "/tmp/caocap-target-failure.txt", atomically: true, encoding: .utf8
+        )
+        #endif
     }
 
-    /// Out-of-process hosts for the system Open/Save panels a sandboxed target app presents.
-    private static let panelHostBundleIdentifiers = [
-        "com.apple.appkit.xpc.openAndSavePanelService",
-        "com.apple.ViewBridgeAuxiliary",
-    ]
-
-    private func callTool(_ name: String, argsJSON: [String: Any]) throws -> Data {
-        guard let binaryPath = Self.resolvedBinaryPath() else {
-            throw CuaDriverClientError.notInstalled
+    private func target() throws -> (pid: Int, window: Int) {
+        try checkCancellation()
+        guard let documentURL else {
+            recordTargetFailure("no prepared document"); throw DriverError("documentChanged")
         }
-        let argsData = try JSONSerialization.data(withJSONObject: argsJSON)
-        let argsString = String(data: argsData, encoding: .utf8) ?? "{}"
-
-        let errorPath = NSTemporaryDirectory() + "cua-stderr-\(UUID().uuidString).log"
-        FileManager.default.createFile(atPath: errorPath, contents: nil)
-        defer { try? FileManager.default.removeItem(atPath: errorPath) }
-        guard let errorHandle = FileHandle(forWritingAtPath: errorPath) else {
-            throw CuaDriverClientError.unexpectedResponse
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.TextEdit").first else {
+            recordTargetFailure("TextEdit is not running"); throw DriverError("documentChanged")
         }
+        let wanted = documentURL.resolvingSymlinksInPath().path
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        let windows = attribute(axApp, kAXWindowsAttribute) as? [AXUIElement] ?? []
+        let matches = windows.filter { element in
+            guard let raw = attribute(element, kAXDocumentAttribute) as? String,
+                  let path = Self.normalizedDocumentPath(raw) else { return false }
+            return path.compare(wanted, options: .caseInsensitive) == .orderedSame
+        }
+        guard matches.count == 1, let window = matches.first else {
+            let seen = windows.compactMap { attribute($0, kAXDocumentAttribute) as? String }
+            recordTargetFailure("wanted \(wanted); \(windows.count) window(s), \(matches.count) match(es); AXDocument seen: \(seen)")
+            throw DriverError("documentChanged")
+        }
+        guard (attribute(window, "AXSheets") as? [AXUIElement] ?? []).isEmpty else {
+            recordTargetFailure("a sheet is open over the document"); throw DriverError("documentChanged")
+        }
+        guard let editor = editor(in: window) else {
+            recordTargetFailure("no text area found in the document window"); throw DriverError("documentChanged")
+        }
+        guard AXUIElementPerformAction(window, kAXRaiseAction as CFString) == .success,
+              AXUIElementSetAttributeValue(editor, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else {
+            recordTargetFailure("could not raise or focus the document (Accessibility?)"); throw DriverError("documentChanged")
+        }
+        var windowID = CGWindowID(0)
+        if _AXUIElementGetWindow(window, &windowID) == .success, windowID != 0 {
+            return (Int(app.processIdentifier), Int(windowID))
+        }
+        // Public fallback. Needs Screen Recording in this process, so it may find
+        // nothing even though the window is plainly on screen.
+        let records = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        let title = attribute(window, kAXTitleAttribute) as? String
+        let candidates = records.filter {
+            ($0[kCGWindowOwnerPID as String] as? Int) == Int(app.processIdentifier)
+            && ($0[kCGWindowName as String] as? String) == title
+            && ($0[kCGWindowLayer as String] as? Int) == 0
+        }
+        guard candidates.count == 1, let id = candidates[0][kCGWindowNumber as String] as? Int else {
+            let names = records.filter { ($0[kCGWindowOwnerPID as String] as? Int) == Int(app.processIdentifier) }
+                .map { $0[kCGWindowName as String] as? String ?? "<nil>" }
+            recordTargetFailure("AX window id unavailable; AX title \(title ?? "<nil>"); \(candidates.count) CGWindow match(es); names: \(names)")
+            throw DriverError("documentChanged")
+        }
+        return (Int(app.processIdentifier), id)
+    }
+    private func call(_ tool: String, _ args: [String: Any]) throws -> Data {
+        guard let binary else { throw DriverError("setupIncomplete") }
+        return try execute(binary, ["call", tool, String(decoding: try JSONSerialization.data(withJSONObject: args), as: UTF8.self), "--socket", socket], timeout: 15)
+    }
+    private func execute(_ executable: URL, _ arguments: [String], timeout: TimeInterval) throws -> Data {
+        try checkCancellation()
+        let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        FileManager.default.createFile(atPath: output.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: output) }
+        let handle = try FileHandle(forWritingTo: output)
+        defer { try? handle.close() }
+        // Keep stderr. Discarding it turns every driver failure into a bare
+        // "actionFailed" with no way to tell what the driver actually objected to.
+        let errorFile = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        FileManager.default.createFile(atPath: errorFile.path, contents: nil)
+        defer { try? FileManager.default.removeItem(at: errorFile) }
+        let errorHandle = try FileHandle(forWritingTo: errorFile)
         defer { try? errorHandle.close() }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: binaryPath)
-        process.arguments = ["call", name, argsString]
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        // A pipe nobody drains deadlocks the child once it fills (~64KB), and cua-driver's
-        // window/app listings are easily that large on a busy desktop. stderr goes to a file
-        // (no buffer limit, and readable afterwards for a real error message); stdout is read to
-        // EOF *before* waitUntilExit so the child is never blocked on a full buffer.
-        process.standardError = errorHandle
+        let process = Process(); process.executableURL = executable; process.arguments = arguments
+        process.standardOutput = handle; process.standardError = errorHandle
+        lock.withLock { activeProcess = process }
+        defer { lock.withLock { activeProcess = nil } }
         try process.run()
-
-        let output = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning {
+            if lock.withLock({ cancelled }) || Date() >= deadline {
+                process.terminate()
+                Thread.sleep(forTimeInterval: 0.1)
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+                throw DriverError(lock.withLock({ cancelled }) ? "stoppedOnMac" : "runTimeout")
+            }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
         guard process.terminationStatus == 0 else {
-            let message = (try? String(contentsOfFile: errorPath, encoding: .utf8))?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            throw CuaDriverClientError.toolCallFailed(
-                name: name,
-                exitCode: process.terminationStatus,
-                message: (message?.isEmpty == false) ? message : nil
-            )
+            let err = (try? String(contentsOf: errorFile, encoding: .utf8)) ?? ""
+            let out = (try? String(contentsOf: output, encoding: .utf8)) ?? ""
+            recordTargetFailure("""
+                driver exited \(process.terminationStatus)
+                argv: \(arguments.joined(separator: " "))
+                stderr: \(err.prefix(1500))
+                stdout: \(out.prefix(500))
+                """)
+            throw DriverError("actionFailed")
         }
-        return output
-    }
-
-    private static func resolvedBinaryPath() -> String? {
-        if let found = binaryCandidatePaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
-            return found
-        }
-        return which("cua-driver")
-    }
-
-    private static func which(_ name: String) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["which", name]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do {
-            try process.run()
-            process.waitUntilExit()
-            guard process.terminationStatus == 0 else { return nil }
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return (path?.isEmpty == false) ? path : nil
-        } catch {
-            return nil
-        }
-    }
-
-    /// list_apps returns `pid: 0` for an installed-but-not-running app (per `describe list_apps`);
-    /// the output bundle-id field name isn't shown in the schema description, so this tries the
-    /// two most likely names.
-    private static func firstRunningPID(forBundleIdentifier bundleIdentifier: String, in data: Data) -> Int? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
-        let apps = (json as? [[String: Any]]) ?? (json as? [String: Any])?["apps"] as? [[String: Any]] ?? []
-        let match = apps.first {
-            (($0["bundle_id"] as? String) == bundleIdentifier || ($0["bundleIdentifier"] as? String) == bundleIdentifier)
-                && ($0["running"] as? Bool == true)
-        }
-        guard let pid = match?["pid"] as? Int, pid != 0 else { return nil }
-        return pid
-    }
-
-    /// Per `describe list_windows`: "take the maximum integer z_index; if every value is null,
-    /// use an explicit fallback instead of relying on array order" — falls back to the first
-    /// candidate window when no entry has a usable z_index.
-    private static func frontmostWindow(in data: Data, limitedTo pids: Set<Int>) -> (pid: Int, windowID: Int)? {
-        guard let json = try? JSONSerialization.jsonObject(with: data) else { return nil }
-        let windows = (json as? [[String: Any]]) ?? (json as? [String: Any])?["windows"] as? [[String: Any]] ?? []
-        let candidates = windows.filter { window in
-            guard let pid = window["pid"] as? Int else { return false }
-            return pids.contains(pid) && window["window_id"] is Int
-        }
-        guard !candidates.isEmpty else { return nil }
-
-        let ranked = candidates.max { lhs, rhs in
-            (lhs["z_index"] as? Int ?? Int.min) < (rhs["z_index"] as? Int ?? Int.min)
-        }
-        let chosen = ranked?["z_index"] != nil ? ranked : candidates.first
-
-        guard let pid = chosen?["pid"] as? Int, let windowID = chosen?["window_id"] as? Int else {
-            return nil
-        }
-        return (pid, windowID)
+        let data = try Data(contentsOf: output)
+        guard data.count <= 8_388_608 else { throw DriverError("actionFailed") }
+        return data
     }
 }
-
-enum CuaDriverClientError: LocalizedError {
-    case notInstalled
-    case noMatchingWindow
-    case unexpectedResponse
-    case unsupportedAction(String)
-    case toolCallFailed(name: String, exitCode: Int32, message: String?)
-
-    var errorDescription: String? {
-        switch self {
-        case .notInstalled:
-            return "cua-driver isn't installed."
-        case .noMatchingWindow:
-            return "No on-screen window for the target app."
-        case .unexpectedResponse:
-            return "cua-driver returned something unexpected."
-        case .unsupportedAction(let type):
-            return "Unsupported action \"\(type)\"."
-        case .toolCallFailed(let name, let exitCode, let message):
-            if let message {
-                return "cua-driver \(name) failed (\(exitCode)): \(message)"
-            }
-            return "cua-driver \(name) failed with exit code \(exitCode)."
-        }
-    }
+struct DriverError: LocalizedError {
+    let code: String
+    init(_ code: String) { self.code = code }
+    var errorDescription: String? { code }
 }

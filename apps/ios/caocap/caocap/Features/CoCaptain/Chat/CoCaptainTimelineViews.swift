@@ -64,8 +64,14 @@ struct TimelineItemView: View {
         )
     }
 
+    @ViewBuilder
     private func executionView(for status: ExecutionStatusItem) -> some View {
-        ExecutionSummaryView(status: status, onUndo: undoAction(for: status))
+        if let activity = status.remoteCommand {
+            RemoteCommandActivityView(activity: activity)
+                .task(id: activity.commandID) { await viewModel.observeRemoteCommand(activity, itemID: item.id) }
+        } else {
+            ExecutionSummaryView(status: status, onUndo: undoAction(for: status))
+        }
     }
 
     private func retryAction(for bubble: ChatBubbleItem) -> (() -> Void)? {
@@ -325,5 +331,27 @@ struct ProductCTAView: View {
                     removal: .opacity
                 )
         )
+    }
+}
+
+
+private struct RemoteCommandActivityView: View {
+    let activity: RemoteCommandActivity
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                if ["pending", "claimed", "running"].contains(activity.phase) { ProgressView().controlSize(.small) }
+                else { Image(systemName: ["completed", "opened"].contains(activity.phase) ? "checkmark.circle.fill" : "exclamationmark.circle") }
+                Text(activity.summary).font(.subheadline.weight(.medium))
+            }
+            ForEach(Array(activity.steps.suffix(3).enumerated()), id: \.offset) { _, step in Text(step).font(.caption).foregroundStyle(.secondary) }
+            if let preview = activity.previewText {
+                Text(preview).font(.body).textSelection(.enabled)
+                if activity.previewTruncated { Text("Preview shortened. The full document is on your Mac.").font(.caption).foregroundStyle(.secondary) }
+            }
+            if activity.failureCode == "noMac" || activity.failureCode == "setupIncomplete" || activity.failureCode == "noWorkspaceFolder" {
+                Link("Mac setup and downloads", destination: URL(string: "https://caocap-ficruty.web.app/download")!)
+            }
+        }.padding(12).background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
     }
 }

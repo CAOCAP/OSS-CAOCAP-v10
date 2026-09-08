@@ -58,3 +58,8 @@ target/
 build-dir/
 firebase/hosting-public/
 /firebase/.firebase/
+
+# Verified release staging (recreated from immutable storage)
+/apps/macos/vendor/staged/
+/release-artifacts/
+*-debug.log

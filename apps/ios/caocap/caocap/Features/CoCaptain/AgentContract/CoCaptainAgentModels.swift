@@ -708,11 +708,13 @@ public struct ExecutionStatusItem: Identifiable, Hashable, Codable {
     public let summary: String
     /// True when the action can be reversed through the active ProjectStore undo manager.
     public let allowsUndo: Bool
+    public var remoteCommand: RemoteCommandActivity?
 
-    public init(id: UUID = UUID(), summary: String, allowsUndo: Bool = false) {
+    public init(id: UUID = UUID(), summary: String, allowsUndo: Bool = false, remoteCommand: RemoteCommandActivity? = nil) {
         self.id = id
         self.summary = summary
         self.allowsUndo = allowsUndo
+        self.remoteCommand = remoteCommand
     }
 }
 

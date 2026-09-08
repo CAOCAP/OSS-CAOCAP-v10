@@ -1,4 +1,5 @@
 import FirebaseCore
+import FirebaseAppCheck
 import OSLog
 
 /// Configures the shared Firebase Apple app used by iOS and Mac.
@@ -20,6 +21,12 @@ enum FirebaseConfiguration {
             return
         }
 
+        #if DEBUG
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #else
+        // Explicit DeviceCheck provider; Mac beta access does not require attestation.
+        AppCheck.setAppCheckProviderFactory(DeviceCheckProviderFactory())
+        #endif
         FirebaseApp.configure()
 
         let options = FirebaseApp.app()?.options

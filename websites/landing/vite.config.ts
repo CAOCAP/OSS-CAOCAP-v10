@@ -8,6 +8,7 @@ const root = fileURLToPath(new URL('.', import.meta.url))
 const repoRoot = path.resolve(root, '../..')
 
 export default defineConfig({
+  build: { rolldownOptions: { input: { main: path.resolve(root, 'index.html'), download: path.resolve(root, 'download.html') } } },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

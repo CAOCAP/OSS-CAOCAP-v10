@@ -15,11 +15,11 @@ struct RemoteCommandMappingTests {
         #expect(receipt == .pending)
     }
 
-    @Test func pendingTimesOutToMacRequestsOff() {
+    @Test func pendingTimesOutToUnconfirmed() {
         let started = Date().addingTimeInterval(-30)
         let receipt = RemoteCommandMapping.receipt(status: "pending", pendingSince: started)
-        #expect(receipt == .macRequestsOff)
-        #expect(receipt.label == "Mac has requests off")
+        #expect(receipt == .unconfirmed)
+        #expect(receipt.label == "Not confirmed yet")
     }
 
     @Test func commandIdReadsCallablePayload() {
@@ -30,7 +30,7 @@ struct RemoteCommandMappingTests {
     @Test func settledReceiptsAreTerminal() {
         #expect(RemoteCommandMapping.isSettled(.opened))
         #expect(RemoteCommandMapping.isSettled(.failed))
-        #expect(RemoteCommandMapping.isSettled(.macRequestsOff))
+        #expect(RemoteCommandMapping.isSettled(.unconfirmed))
         #expect(!RemoteCommandMapping.isSettled(.pending))
         #expect(!RemoteCommandMapping.isSettled(.none))
     }
@@ -39,12 +39,12 @@ struct RemoteCommandMappingTests {
         #expect(RemoteCommandChatCopy.message(for: .opened) == "YouTube opened on your Mac")
         #expect(RemoteCommandChatCopy.message(for: .failed) == "Your Mac could not open YouTube")
         #expect(
-            RemoteCommandChatCopy.message(for: .macRequestsOff)
-                == "Your Mac has requests from iPhone turned off"
+            RemoteCommandChatCopy.message(for: .unconfirmed)
+                == "Your Mac has not confirmed this request yet"
         )
         #expect(
             RemoteCommandChatCopy.message(for: .pending)
-                == "Your Mac has requests from iPhone turned off"
+                == "Your Mac has not confirmed this request yet"
         )
         #expect(
             RemoteCommandChatCopy.message(for: .opened, subject: .video)

@@ -9,7 +9,8 @@ enum RemoteCommandReceipt: Equatable {
     case pending
     case opened
     case failed
-    case macRequestsOff
+    case unconfirmed
+    case expired
 
     var label: String {
         switch self {
@@ -17,7 +18,8 @@ enum RemoteCommandReceipt: Equatable {
         case .pending: return "Pending"
         case .opened: return "Opened"
         case .failed: return "Failed"
-        case .macRequestsOff: return "Mac has requests off"
+        case .unconfirmed: return "Not confirmed yet"
+        case .expired: return "Request expired"
         }
     }
 }
@@ -69,9 +71,10 @@ enum RemoteCommandChatCopy {
             case .page:
                 return LocalizationManager.shared.localizedString("Your Mac could not open this page")
             }
-        case .macRequestsOff, .pending:
+        case .expired: return "Request expired. Try again."
+        case .unconfirmed, .pending:
             return LocalizationManager.shared.localizedString(
-                "Your Mac has requests from iPhone turned off"
+                "Your Mac has not confirmed this request yet"
             )
         }
     }
@@ -83,7 +86,7 @@ enum RemoteCommandMapping {
 
     static func isSettled(_ receipt: RemoteCommandReceipt) -> Bool {
         switch receipt {
-        case .opened, .failed, .macRequestsOff:
+        case .opened, .failed, .unconfirmed, .expired:
             return true
         case .none, .pending:
             return false
@@ -100,11 +103,12 @@ enum RemoteCommandMapping {
             return .opened
         case "failed":
             return .failed
+        case "expired": return .expired
         case "claimed":
             return .pending
         case "pending":
             if let pendingSince, now.timeIntervalSince(pendingSince) >= pendingTimeout {
-                return .macRequestsOff
+                return .unconfirmed
             }
             return .pending
         default:
@@ -195,201 +199,82 @@ enum RemoteCommandMapping {
     }
 }
 
-/// Creates allowlisted openYouTube commands and surfaces the receipt from Firestore.
-@Observable
-@MainActor
+/// App-session registry. Every request owns its snapshot listener and receipt.
+@Observable @MainActor
 final class RemoteCommandClient {
-    private(set) var receipt: RemoteCommandReceipt = .none
+    private(set) var trackers: [String: RemoteCommandTracker] = [:]
+    private(set) var latestTracker: RemoteCommandTracker?
     private(set) var isSending = false
-
-    private let logger = Logger(subsystem: "com.caocap.app", category: "RemoteCommand")
-    private var listener: ListenerRegistration?
-    private var timeoutTask: Task<Void, Never>?
-    private var pendingSince: Date?
-    private var lastStatus: String?
-    private var observationTask: Task<Void, Never>?
     private var signedInUID: String?
-
+    private var submitted = Set<String>()
+    private var observationTask: Task<Void, Never>?
+    var receipt: RemoteCommandReceipt {
+        switch latestTracker?.activity.phase {
+        case "opened", "completed": .opened
+        case "failed": .failed
+        case "expired": .expired
+        case "unconfirmed": .unconfirmed
+        case nil: .none
+        default: .pending
+        }
+    }
     func attach(authManager: AuthenticationManager) {
         observationTask?.cancel()
         observationTask = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
-                self.apply(authManager.authState)
-                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                    withObservationTracking {
-                        _ = authManager.authState
-                    } onChange: {
-                        continuation.resume()
-                    }
+                let next: String? = if case .authenticated(let uid) = authManager.authState { uid } else { nil }
+                if self.signedInUID != next {
+                    self.trackers.values.forEach { $0.cancelWaiting() }
+                    self.trackers.removeAll(); self.submitted.removeAll(); self.latestTracker = nil; self.signedInUID = next
+                }
+                await withCheckedContinuation { continuation in
+                    withObservationTracking { _ = authManager.authState } onChange: { continuation.resume() }
                 }
             }
         }
     }
-
-    func openYouTubeOnMac() async {
-        guard !isSending, let uid = signedInUID else { return }
+    func reconnect(uid: String, id: String, taskSummary: String) -> RemoteCommandTracker? {
+        guard uid == signedInUID else { return nil }
+        if let tracker = trackers[id] { return tracker }
+        let tracker = RemoteCommandTracker(uid: uid, id: id, taskSummary: taskSummary)
+        trackers[id] = tracker; tracker.listen(); return tracker
+    }
+    func start(function: String, id: String = UUID().uuidString, arguments: [String: String] = [:]) async throws -> RemoteCommandTracker {
+        guard let uid = signedInUID else { throw RemoteCommandStartError.signInRequired }
+        let tracker = trackers[id] ?? RemoteCommandTracker(uid: uid, id: id, taskSummary: arguments["taskSummary"] ?? "")
+        guard submitted.insert(id).inserted else { return tracker }
+        trackers[id] = tracker; latestTracker = tracker
+        tracker.listen() // ID is known before transport; an uncertain response still has a receipt path.
+        let payload = arguments.merging(["requestId": id]) { _, new in new }
         isSending = true
-        receipt = .pending
-        pendingSince = Date()
-        stopListening()
+        defer { isSending = false }
         do {
-            let result = try await Functions.functions(region: "us-central1")
-                .httpsCallable("createOpenYouTube")
-                .call()
-            let data = result.data
-            guard let commandId = RemoteCommandMapping.commandId(from: data) else {
-                throw NSError(
-                    domain: "RemoteCommandClient",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Missing command id."]
-                )
-            }
-            listen(uid: uid, commandId: commandId)
-            startTimeoutWatch()
-        } catch {
-            logger.error("createOpenYouTube failed: \(error.localizedDescription, privacy: .public)")
-            receipt = .failed
-            pendingSince = nil
+            let result = try await Functions.functions(region: "us-central1").httpsCallable(function).call(payload)
+            guard signedInUID == uid else { tracker.cancelWaiting(); throw CancellationError() }
+            guard RemoteCommandMapping.commandId(from: result.data) == id else { throw RemoteCommandStartError.unavailable }
+        } catch let error as NSError {
+            if signedInUID != uid { tracker.cancelWaiting(); throw CancellationError() }
+            let definitive = [FunctionsErrorCode.invalidArgument.rawValue, FunctionsErrorCode.permissionDenied.rawValue,
+                FunctionsErrorCode.unauthenticated.rawValue, FunctionsErrorCode.resourceExhausted.rawValue,
+                FunctionsErrorCode.alreadyExists.rawValue].contains(error.code)
+            let detail = error.userInfo[FunctionsErrorDetailsKey] as? [String: Any]
+            if definitive || detail?["failureCode"] != nil { tracker.fail(detail?["failureCode"] as? String ?? "actionFailed") }
+            else { tracker.uncertain() }
         }
-        isSending = false
+        return tracker
     }
-
-    func openYouTubeVideoOnMac(url rawURL: String) async {
-        guard !isSending, let uid = signedInUID else { return }
-        guard let url = RemoteCommandMapping.canonicalWatchURL(from: rawURL) else {
-            receipt = .failed
-            pendingSince = nil
-            return
+    func openYouTubeOnMac() async { _ = try? await start(function: "createOpenYouTube") }
+    func openYouTubeVideoOnMac(url: String) async { _ = try? await start(function: "createOpenYouTubeVideo", arguments: ["url": url]) }
+    func openURLOnMac(url: String) async { _ = try? await start(function: "createOpenURL", arguments: ["url": url]) }
+}
+public enum RemoteCommandStartError: LocalizedError {
+    case signInRequired, noMac, unavailable
+    public var errorDescription: String? {
+        switch self {
+        case .signInRequired: "Sign in to send this to your Mac."
+        case .noMac: "Sign in on your Mac with the same account."
+        case .unavailable: "Computer use is unavailable."
         }
-        isSending = true
-        receipt = .pending
-        pendingSince = Date()
-        stopListening()
-        do {
-            let result = try await Functions.functions(region: "us-central1")
-                .httpsCallable("createOpenYouTubeVideo")
-                .call(["url": url])
-            let data = result.data
-            guard let commandId = RemoteCommandMapping.commandId(from: data) else {
-                throw NSError(
-                    domain: "RemoteCommandClient",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Missing command id."]
-                )
-            }
-            listen(uid: uid, commandId: commandId)
-            startTimeoutWatch()
-        } catch {
-            logger.error("createOpenYouTubeVideo failed: \(error.localizedDescription, privacy: .public)")
-            receipt = .failed
-            pendingSince = nil
-        }
-        isSending = false
-    }
-
-    func openURLOnMac(url rawURL: String) async {
-        guard !isSending, let uid = signedInUID else { return }
-        guard let url = RemoteCommandMapping.canonicalDocumentationURL(from: rawURL) else {
-            receipt = .failed
-            pendingSince = nil
-            return
-        }
-        isSending = true
-        receipt = .pending
-        pendingSince = Date()
-        stopListening()
-        do {
-            let result = try await Functions.functions(region: "us-central1")
-                .httpsCallable("createOpenURL")
-                .call(["url": url])
-            let data = result.data
-            guard let commandId = RemoteCommandMapping.commandId(from: data) else {
-                throw NSError(
-                    domain: "RemoteCommandClient",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Missing command id."]
-                )
-            }
-            listen(uid: uid, commandId: commandId)
-            startTimeoutWatch()
-        } catch {
-            logger.error("createOpenURL failed: \(error.localizedDescription, privacy: .public)")
-            receipt = .failed
-            pendingSince = nil
-        }
-        isSending = false
-    }
-
-    /// Waits until the current command receipt is terminal, or the pending timeout elapses.
-    func waitUntilSettled() async -> RemoteCommandReceipt {
-        let deadline = Date().addingTimeInterval(RemoteCommandMapping.pendingTimeout + 1)
-        while Date() < deadline, !RemoteCommandMapping.isSettled(receipt) {
-            try? await Task.sleep(for: .milliseconds(200))
-        }
-        if RemoteCommandMapping.isSettled(receipt) {
-            return receipt
-        }
-        if receipt == .pending {
-            return .macRequestsOff
-        }
-        return receipt
-    }
-
-    private func apply(_ state: AuthState) {
-        switch state {
-        case .authenticated(let uid):
-            signedInUID = uid
-        case .anonymous, .loading, .failed:
-            signedInUID = nil
-            stopListening()
-            timeoutTask?.cancel()
-            receipt = .none
-            pendingSince = nil
-            lastStatus = nil
-        }
-    }
-
-    private func listen(uid: String, commandId: String) {
-        listener = Firestore.firestore()
-            .collection("users")
-            .document(uid)
-            .collection("commands")
-            .document(commandId)
-            .addSnapshotListener { [weak self] snapshot, error in
-                Task { @MainActor in
-                    guard let self else { return }
-                    if let error {
-                        self.logger.error("Command listener failed: \(error.localizedDescription, privacy: .public)")
-                        self.receipt = .failed
-                        return
-                    }
-                    let status = snapshot?.data()?["status"] as? String
-                    self.lastStatus = status
-                    self.receipt = RemoteCommandMapping.receipt(
-                        status: status,
-                        pendingSince: self.pendingSince
-                    )
-                    if self.receipt == .opened || self.receipt == .failed {
-                        self.timeoutTask?.cancel()
-                    }
-                }
-            }
-    }
-
-    private func startTimeoutWatch() {
-        timeoutTask?.cancel()
-        timeoutTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(RemoteCommandMapping.pendingTimeout))
-            guard !Task.isCancelled, let self else { return }
-            if self.receipt == .pending, self.lastStatus == "pending" || self.lastStatus == nil {
-                self.receipt = .macRequestsOff
-            }
-        }
-    }
-
-    private func stopListening() {
-        listener?.remove()
-        listener = nil
     }
 }

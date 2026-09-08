@@ -43,6 +43,7 @@ public enum AppActionID: String, CaseIterable, Identifiable, Codable, Hashable {
     case openYouTubeOnMac = "open_youtube_on_mac"
     case openYouTubeVideoOnMac = "open_youtube_video_on_mac"
     case openURLOnMac = "open_url_on_mac"
+    case runComputerUseOnMac = "run_computer_use_on_mac"
 
     public var id: String { rawValue }
 
@@ -386,6 +387,7 @@ public final class AppActionDispatcher: AppActionPerforming {
             isMutating: false,
             allowsAutonomousExecution: true
         ),
+        AppActionDefinition(id: .runComputerUseOnMac, title: "Write a document on my Mac", icon: "desktopcomputer", category: .assistant, isMutating: true, allowsAutonomousExecution: false),
         AppActionDefinition(
             id: .openYouTubeOnMac,
             title: "Open YouTube homepage on the signed-in Mac (no search)",
