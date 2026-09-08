@@ -127,7 +127,7 @@ public struct LocalModelDeviceEligibility: Equatable, Sendable {
 
 /// Resolves persisted model choices against the current device capability.
 public enum CoCaptainModelSelectionPolicy {
-    public static let cloudModelName = "gemini-3-flash-preview"
+    public static let cloudModelName = "gemini-3.7-flash"
     public static let localModelName = "gemma-4-local"
 
     public static func resolvedModelName(

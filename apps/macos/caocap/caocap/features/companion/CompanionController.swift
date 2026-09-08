@@ -13,8 +13,8 @@ final class CompanionController {
 
     let play = CompanionPlay()
 
-    private let cocaptainChat = AgentChatSession()
-    private let costarChat = AgentChatSession()
+    private let cocaptainChat = AgentChatSession(persona: .cocaptain)
+    private let costarChat = AgentChatSession(persona: .costar)
 
     var chatSession: AgentChatSession {
         persona == .cocaptain ? cocaptainChat : costarChat
@@ -54,6 +54,7 @@ final class CompanionController {
 
         play.persona = persona
         play.isAwake = isAwake
+        setupChatReactions()
     }
 
     func install() {
@@ -126,6 +127,7 @@ final class CompanionController {
         play.persona = persona
         UserDefaults.standard.set(persona.rawValue, forKey: CompanionDefaults.persona)
         play.dispatch(.personaChanged)
+        handleGenerationState(chatSession.generationState)
         if !isAwake {
             setAwake(true)
         }
@@ -283,5 +285,29 @@ final class CompanionController {
             return hit
         }
         return NSScreen.main ?? NSScreen.screens[0]
+    }
+
+    private func setupChatReactions() {
+        cocaptainChat.onStateChange = { [weak self] state in
+            guard let self, self.persona == .cocaptain else { return }
+            self.handleGenerationState(state)
+        }
+        costarChat.onStateChange = { [weak self] state in
+            guard let self, self.persona == .costar else { return }
+            self.handleGenerationState(state)
+        }
+    }
+
+    private func handleGenerationState(_ state: GenerationState) {
+        switch state {
+        case .streaming:
+            play.setMood(.thinking, priority: .interaction, owner: "ai")
+        case .idle:
+            play.clearMood(owner: "ai")
+            play.setMood(.celebrating, priority: .interaction, owner: "ai_celebration", duration: 1.5)
+        case .failed:
+            play.clearMood(owner: "ai")
+            play.setMood(.confused, priority: .interaction, owner: "ai_error", duration: 3.0)
+        }
     }
 }

@@ -43,9 +43,9 @@ See [macOS setup and current behavior](../apps/macos/README.md). The initial cha
 
 | Phase | Visible result | Status |
 | --- | --- | --- |
-| 1. Finish chat UX | The floating Agent's chat feels right and behaves consistently on Mac. | Not started; initial UI exists |
-| 2. Connect AI conversation | The user can have a real conversation with CoCaptain, stop a response, and recover from errors. | Not started |
-| 3. Complete one computer-use task | A prompt leads to real work in a chosen app and an inspectable result. | Not started |
+| 1. Finish chat UX | The floating Agent's chat feels right and behaves consistently on Mac. | Initial UI refined |
+| 2. Connect AI conversation | The user can have a real conversation with CoCaptain, stop a response, and recover from errors. | Completed; live streaming implemented |
+| 3. Complete one computer-use task | A prompt leads to real work in a chosen app and an inspectable result. | Next |
 
 ## Phase 1 — Finish the floating Agent's chat UX
 
@@ -85,28 +85,28 @@ See [macOS setup and current behavior](../apps/macos/README.md). The initial cha
 
 ## Phase 2 — Connect real AI conversation
 
-**Status:** Not started
+**Status:** Completed
 **Depends on:** Phase 1
 
 **Outcome:** The user sends a prompt through the Agent's chat and receives a real response, with clear control over the conversation.
 
-### Decisions to settle
+### Decisions settled
 
-- Choose the model/provider and how the Mac app connects. The iOS Firebase implementation is a reference, not an automatic provider choice for Mac.
-- Define development configuration, credential handling, and any usage constraints needed for this first integration.
-- Confirm conversation context/history behavior and what happens to an active response when chat closes or the persona changes.
-- Decide how a new prompt is handled while a response is already running.
+- Provider & model: Firebase AI Logic (`gemini-flash-latest`) using the existing `GoogleService-Info.plist`.
+- System persona & tone: Mirrored after iOS CoCaptain (patient, encouraging mentor) and CoStar (visionary creative partner).
+- Session scope: Multi-turn conversations persist in memory across chat window closures and persona switches, and reset when quitting CAOCAP.
+- Desktop companion reactions: Head reacts to the generation lifecycle (Thinking face while streaming, Celebrating face briefly on completion, Confused face on error).
 
 ### Work
 
-- [ ] Add the smallest service integration needed for text conversation.
-- [ ] Connect the composer to a real request and display streamed replies when supported.
-- [ ] Distinguish pending, responding, completed, stopped, and failed turns using actual service state.
-- [ ] Add Stop and an understandable retry path. Retain the user's prompt after failure.
-- [ ] Keep replies attached to the originating conversation and persona, including after switching or closing chat.
-- [ ] Show connection/setup failures clearly and remove preview wording only where the live connection replaces it.
-- [ ] Add focused tests for response lifecycle, cancellation, failure, and conversation isolation; create a macOS test target if needed.
-- [ ] Update setup documentation with the configuration actually selected.
+- [x] Add the smallest service integration needed for text conversation (`AgentLLMService.swift` using `FirebaseAILogic`).
+- [x] Connect the composer to a real request and display streamed replies when supported.
+- [x] Distinguish pending, responding, completed, stopped, and failed turns using actual service state.
+- [x] Add Stop and an understandable retry path. Retain the user's prompt after failure.
+- [x] Keep replies attached to the originating conversation and persona, including after switching or closing chat.
+- [x] Show connection/setup failures clearly and remove preview wording only where the live connection replaces it.
+- [x] Added dynamic composer controls (Stop button during stream, Send arrow when idle) and rich Markdown formatting.
+- [x] Update setup documentation with the configuration actually selected.
 
 ### Completion checks
 

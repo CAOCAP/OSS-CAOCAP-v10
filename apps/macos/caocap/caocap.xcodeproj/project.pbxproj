@@ -10,6 +10,7 @@
 		4C89E7B13034180000976521 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7B53034180000976525 /* FirebaseCore */; };
 		4C89E7B63034180000976526 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7B73034180000976527 /* FirebaseAuth */; };
 		4C89E7B83034180000976528 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7B93034180000976529 /* FirebaseFirestore */; };
+		4C89E7BA3034180000976530 /* FirebaseAILogic in Frameworks */ = {isa = PBXBuildFile; productRef = 4C89E7BB3034180000976531 /* FirebaseAILogic */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 				4C89E7B13034180000976521 /* FirebaseCore in Frameworks */,
 				4C89E7B63034180000976526 /* FirebaseAuth in Frameworks */,
 				4C89E7B83034180000976528 /* FirebaseFirestore in Frameworks */,
+				4C89E7BA3034180000976530 /* FirebaseAILogic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -77,6 +79,7 @@
 				4C89E7B53034180000976525 /* FirebaseCore */,
 				4C89E7B73034180000976527 /* FirebaseAuth */,
 				4C89E7B93034180000976529 /* FirebaseFirestore */,
+				4C89E7BB3034180000976531 /* FirebaseAILogic */,
 			);
 			productName = caocap;
 			productReference = 4C89E7993034171D00976521 /* caocap.app */;
@@ -379,6 +382,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4C89E7B43034180000976524 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		4C89E7BB3034180000976531 /* FirebaseAILogic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4C89E7B43034180000976524 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAILogic;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
