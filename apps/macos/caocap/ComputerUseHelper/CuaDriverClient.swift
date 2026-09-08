@@ -16,8 +16,33 @@ final class CuaDriverClient: @unchecked Sendable {
     private var cancelled = false
     private var documentURL: URL?
     private var daemon: Process?
-    private let socketDirectory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("caocap-driver-\(UUID().uuidString)")
-    private var socket: String { socketDirectory.appendingPathComponent("driver.sock").path }
+    private let socketDirectory = CuaDriverClient.makeSocketDirectory()
+    private var socket: String { socketDirectory.appendingPathComponent(Self.socketName).path }
+
+    static let socketName = "driver.sock"
+    /// sockaddr_un.sun_path is 104 bytes on Darwin, including the terminator.
+    static let maxSocketPathLength = 103
+
+    /// Builds a socket directory whose full socket path fits in `sun_path`.
+    ///
+    /// The default temporary directory already costs ~49 characters in the helper
+    /// and ~64 inside the sandboxed app's container, so appending a full 36-character
+    /// UUID pushes the socket past the limit. `bind` then fails with
+    /// "path must be shorter than SUN_LEN", the daemon never comes up, and the user
+    /// is told to finish setup -- which is not the problem at all.
+    static func makeSocketDirectory(
+        base: URL = URL(fileURLWithPath: NSTemporaryDirectory()),
+        token: String = String(UUID().uuidString.prefix(8))
+    ) -> URL {
+        let preferred = base.appendingPathComponent("caocap-\(token)")
+        if socketPathFits(preferred) { return preferred }
+        // /tmp keeps the prefix to five characters when the container path cannot.
+        return URL(fileURLWithPath: "/tmp").appendingPathComponent("caocap-\(token)")
+    }
+
+    static func socketPathFits(_ directory: URL) -> Bool {
+        directory.appendingPathComponent(socketName).path.utf8.count <= maxSocketPathLength
+    }
     private var binary: URL? {
         let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/cua-driver")
         if FileManager.default.isExecutableFile(atPath: bundled.path) { return bundled }
