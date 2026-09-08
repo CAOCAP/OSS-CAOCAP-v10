@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import FirebaseAppCheck
 import FirebaseCore
 import GoogleSignIn
 
@@ -55,8 +56,26 @@ final class AppConfiguration {
             logger.warning("Firebase already configured — skipping duplicate call.")
             return
         }
+        #if DEBUG
+        // App Attest and DeviceCheck cannot attest in the Simulator, so without this
+        // the backend rejects every call with "App Check token is invalid" (401).
+        AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #endif
         FirebaseApp.configure()
+        logDebugAppCheckToken()
         logger.info("Firebase configured successfully.")
+    }
+
+    /// Surfaces the App Check debug token so it can be registered in the Firebase
+    /// console, without requiring the `-FIRDebugEnabled` launch argument.
+    private func logDebugAppCheckToken() {
+        #if DEBUG
+        guard let app = FirebaseApp.app(),
+              let provider = AppCheckDebugProvider(app: app) else { return }
+        logger.notice(
+            "App Check debug token: \(provider.currentDebugToken(), privacy: .public)"
+        )
+        #endif
     }
 
     // MARK: - Google Sign-In
