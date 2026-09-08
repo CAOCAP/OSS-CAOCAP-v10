@@ -148,6 +148,9 @@ struct CoCaptainView: View {
                 }
             }
         }
+        .sheet(isPresented: Binding(get: { viewModel.showingMacSignIn }, set: { viewModel.showingMacSignIn = $0 })) {
+            SignInView()
+        }
         .sheet(isPresented: $isConversationListPresented) {
             CoCaptainConversationListView(viewModel: viewModel)
                 .presentationDetents([.medium, .large])

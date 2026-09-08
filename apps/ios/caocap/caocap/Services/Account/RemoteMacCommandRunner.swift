@@ -1,68 +1,54 @@
 import Foundation
 
-/// CoCaptain-facing Mac command surface. Preflight, create, and wait for a receipt.
 @MainActor
 public protocol RemoteMacCommandRunning: AnyObject {
     func requestOpenYouTubeOnMac() async -> String
     func requestOpenYouTubeVideoOnMac(url: String) async -> String
     func requestOpenURLOnMac(url: String) async -> String
+    func startComputerUseOnMac(requestId: String, taskSummary: String) async throws -> RemoteCommandTracker
+    func reconnectCommand(uid: String, commandID: String, taskSummary: String) -> RemoteCommandTracker?
 }
-
-/// Runs allowlisted Mac open commands and returns localized chat copy.
+public extension RemoteMacCommandRunning {
+    func startComputerUseOnMac(requestId: String, taskSummary: String) async throws -> RemoteCommandTracker { throw RemoteCommandStartError.unavailable }
+    func reconnectCommand(uid: String, commandID: String, taskSummary: String) -> RemoteCommandTracker? { nil }
+}
 @MainActor
 final class RemoteMacCommandRunner: RemoteMacCommandRunning {
     private let client: RemoteCommandClient
     private let authManager: AuthenticationManager
     private let devicePresence: DevicePresence
-
-    init(
-        client: RemoteCommandClient,
-        authManager: AuthenticationManager,
-        devicePresence: DevicePresence
-    ) {
-        self.client = client
-        self.authManager = authManager
-        self.devicePresence = devicePresence
+    init(client: RemoteCommandClient, authManager: AuthenticationManager, devicePresence: DevicePresence) {
+        self.client = client; self.authManager = authManager; self.devicePresence = devicePresence
     }
-
-    func requestOpenYouTubeOnMac() async -> String {
-        await requestOpen(subject: .homepage) {
-            await client.openYouTubeOnMac()
-        }
+    private func preflight() throws {
+        guard authManager.isAuthenticated else { throw RemoteCommandStartError.signInRequired }
+        guard devicePresence.otherDevices.contains(where: { $0.platform == "macos" }) else { throw RemoteCommandStartError.noMac }
     }
-
+    func startComputerUseOnMac(requestId: String, taskSummary: String) async throws -> RemoteCommandTracker {
+        try preflight()
+        return try await client.start(function: "createComputerUseTask", id: requestId, arguments: ["taskSummary": taskSummary])
+    }
+    func reconnectCommand(uid: String, commandID: String, taskSummary: String) -> RemoteCommandTracker? {
+        client.reconnect(uid: uid, id: commandID, taskSummary: taskSummary)
+    }
+    func requestOpenYouTubeOnMac() async -> String { await open("createOpenYouTube") }
     func requestOpenYouTubeVideoOnMac(url: String) async -> String {
-        guard RemoteCommandMapping.canonicalWatchURL(from: url) != nil else {
-            return RemoteCommandChatCopy.invalidURLMessage(for: .video)
-        }
-        return await requestOpen(subject: .video) {
-            await client.openYouTubeVideoOnMac(url: url)
-        }
+        guard let url = RemoteCommandMapping.canonicalWatchURL(from: url) else { return RemoteCommandChatCopy.invalidURLMessage() }
+        return await open("createOpenYouTubeVideo", args: ["url": url])
     }
-
     func requestOpenURLOnMac(url: String) async -> String {
-        guard RemoteCommandMapping.canonicalDocumentationURL(from: url) != nil else {
-            return RemoteCommandChatCopy.invalidURLMessage(for: .page)
-        }
-        return await requestOpen(subject: .page) {
-            await client.openURLOnMac(url: url)
-        }
+        guard let url = RemoteCommandMapping.canonicalDocumentationURL(from: url) else { return RemoteCommandChatCopy.invalidURLMessage(for: .page) }
+        return await open("createOpenURL", args: ["url": url])
     }
-
-    private func requestOpen(
-        subject: RemoteCommandChatCopy.Subject,
-        send: () async -> Void
-    ) async -> String {
-        guard authManager.isAuthenticated else {
-            return LocalizationManager.shared.localizedString("Sign in to send this to your Mac")
-        }
-        guard devicePresence.otherDevices.contains(where: { $0.platform == "macos" }) else {
-            return LocalizationManager.shared.localizedString(
-                "No Mac is signed in with this account"
-            )
-        }
-        await send()
-        let settled = await client.waitUntilSettled()
-        return RemoteCommandChatCopy.message(for: settled, subject: subject)
+    private func open(_ function: String, args: [String: String] = [:]) async -> String {
+        do {
+            try preflight()
+            let tracker = try await client.start(function: function, arguments: args)
+            for await update in tracker.updates() {
+                if update.terminal || update.phase == "unconfirmed" { return update.summary }
+                if Task.isCancelled { return "Stopped waiting. Your Mac may still finish this request." }
+            }
+            return tracker.activity.summary
+        } catch { return error.localizedDescription }
     }
 }

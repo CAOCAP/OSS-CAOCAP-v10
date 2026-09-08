@@ -57,9 +57,10 @@ final class AppConfiguration {
             return
         }
         #if DEBUG
-        // App Attest and DeviceCheck cannot attest in the Simulator, so without this
-        // the backend rejects every call with "App Check token is invalid" (401).
+        // Simulator tokens are development-only; enforcement is configured per service.
         AppCheck.setAppCheckProviderFactory(AppCheckDebugProviderFactory())
+        #else
+        AppCheck.setAppCheckProviderFactory(ReleaseAppCheckProviderFactory())
         #endif
         FirebaseApp.configure()
         logDebugAppCheckToken()
@@ -90,5 +91,11 @@ final class AppConfiguration {
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
         logger.info("Google Sign-In configured successfully.")
+    }
+}
+
+private final class ReleaseAppCheckProviderFactory: NSObject, AppCheckProviderFactory {
+    func createProvider(with app: FirebaseApp) -> AppCheckProvider? {
+        AppAttestProvider(app: app)
     }
 }

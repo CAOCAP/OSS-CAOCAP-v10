@@ -437,7 +437,7 @@ public final class LLMService {
     /// The tool definition that exposes local CAOCAP app actions to the LLM.
     private static let requestAppActionDeclaration = FunctionDeclaration(
         name: CoCaptainFunctionCallAgentAdapter.requestAppActionName,
-        description: "Requests a CAOCAP app action. The app validates and either executes or stages the action for user review.",
+        description: "Requests a CAOCAP app action. To write a short document in TextEdit on the linked Mac, request run_computer_use_on_mac with taskSummary and executionMode=pending. The user must approve. Ask and Plan cannot execute it. The app validates and either executes or stages the action for user review.",
         parameters: [
             "actionId": .string(description: "The exact app action id to request."),
             "executionMode": .enumeration(
@@ -445,9 +445,10 @@ public final class LLMService {
                 description: "`safe` only for non-mutating autonomous actions. `pending` for mutating or review-required actions."
             ),
             "reason": .string(description: "Short reason for requesting the action."),
+            "taskSummary": .string(description: "Required for run_computer_use_on_mac: the exact short document-writing task to approve, at most 500 characters."),
             "url": .string(description: "Required for open_youtube_video_on_mac (YouTube watch URL) or open_url_on_mac (https documentation URL on developer.apple.com, docs.swift.org, or swift.org).")
         ],
-        optionalParameters: ["reason", "url"]
+        optionalParameters: ["reason", "url", "taskSummary"]
     )
 
     /// Structured clarifying-question tool (feature-gated). Takes precedence

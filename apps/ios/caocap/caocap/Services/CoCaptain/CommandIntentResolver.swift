@@ -25,6 +25,9 @@ public struct CommandIntentResolver {
     /// conservative so casual chat is not accidentally interpreted as a command.
     private func aliases(for id: AppActionID) -> [String] {
         switch id {
+        case .runComputerUseOnMac:
+            // A document task needs its full summary and an explicit review.
+            return []
         case .goRoot:
             return [
                 "go root",

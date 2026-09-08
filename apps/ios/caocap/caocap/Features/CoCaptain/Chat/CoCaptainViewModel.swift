@@ -1,3 +1,4 @@
+import FirebaseAuth
 import Observation
 import OSLog
 import SwiftUI
@@ -10,6 +11,7 @@ public final class CoCaptainViewModel {
     var composerMentions: [CoCaptainNodeMention] = []
     var composerAttachments: [CoCaptainAttachment] = []
     public var isPresented: Bool = false
+    public var showingMacSignIn = false
     public var items: [CoCaptainTimelineItem]
     public private(set) var scope: CoCaptainAgentScope = .project
     public private(set) var focusedNodeID: UUID?
@@ -1076,6 +1078,19 @@ public final class CoCaptainViewModel {
         _ decision: CoCaptainReviewLifecycle.Decision,
         in bundleID: UUID
     ) {
+        let approving: Bool
+        switch decision { case .approve, .approveAll: approving = true; default: approving = false }
+        if approving, let timeline = items.first(where: { $0.id == bundleID }), case .reviewBundle(let bundle) = timeline.content {
+            let hasRemote = bundle.items.contains { item in
+                if case .approve(let selected) = decision, selected != item.id { return false }
+                if case .appAction(let id, _) = item.source { return id == .runComputerUseOnMac }
+                return false
+            }
+            if hasRemote {
+                guard !chatMode.isProseOnly else { return }
+                guard let user = Auth.auth().currentUser, !user.isAnonymous else { showingMacSignIn = true; return }
+            }
+        }
         turnState = .applying
         progressPhase = .applying
         defer {
@@ -1112,6 +1127,10 @@ public final class CoCaptainViewModel {
     ) {
         for effect in effects {
             switch effect {
+            case .remoteTaskApproved(let itemID, let taskSummary):
+                startApprovedMacTask(requestID: itemID.uuidString, taskSummary: taskSummary)
+                onReviewItemApplied?(bundleID, itemID)
+
             case .appActionPerformed(let itemID, let result):
                 HapticsManager.shared.notification(.success)
                 items.append(
@@ -1131,6 +1150,58 @@ public final class CoCaptainViewModel {
             case .rejected, .conflicted:
                 break
             }
+        }
+    }
+
+    private func startApprovedMacTask(requestID: String, taskSummary: String) {
+        guard !chatMode.isProseOnly, let runner = remoteMacCommands, let user = Auth.auth().currentUser, !user.isAnonymous else { return }
+        let activity = RemoteCommandActivity(uid: user.uid, commandID: requestID, taskSummary: taskSummary)
+        let item = CoCaptainTimelineItem(content: .execution(ExecutionStatusItem(summary: "Waiting for your Mac…", remoteCommand: activity)))
+        items.append(item)
+        synchronizeActiveConversation()
+        let conversationID = activeConversationID
+        let fileName = store?.fileName
+        Task { [weak self] in
+            do {
+                let tracker = try await runner.startComputerUseOnMac(requestId: requestID, taskSummary: taskSummary)
+                for await update in tracker.updates() {
+                    self?.applyRemoteUpdate(update, itemID: item.id, conversationID: conversationID, fileName: fileName)
+                }
+            } catch {
+                var failed = activity
+                failed.phase = "failed"
+                switch error as? RemoteCommandStartError {
+                case .noMac: failed.failureCode = "noMac"
+                case .signInRequired: failed.failureCode = "signInRequired"
+                default: failed.failureCode = "serviceUnavailable"
+                }
+                self?.applyRemoteUpdate(failed, itemID: item.id, conversationID: conversationID, fileName: fileName)
+            }
+        }
+    }
+
+    func observeRemoteCommand(_ activity: RemoteCommandActivity, itemID: UUID) async {
+        guard !activity.terminal, let tracker = remoteMacCommands?.reconnectCommand(uid: activity.uid, commandID: activity.commandID, taskSummary: activity.taskSummary) else { return }
+        let conversationID = activeConversationID
+        let fileName = store?.fileName
+        for await update in tracker.updates() {
+            guard !Task.isCancelled else { return }
+            applyRemoteUpdate(update, itemID: itemID, conversationID: conversationID, fileName: fileName)
+        }
+    }
+
+    private func applyRemoteUpdate(_ activity: RemoteCommandActivity, itemID: UUID, conversationID: UUID?, fileName: String?) {
+        guard Auth.auth().currentUser?.uid == activity.uid, store?.fileName == fileName else { return }
+        func updated(_ item: CoCaptainTimelineItem) -> CoCaptainTimelineItem {
+            guard item.id == itemID, case .execution(var status) = item.content, status.remoteCommand?.commandID == activity.commandID else { return item }
+            var next = item; status.remoteCommand = activity; next.content = .execution(status); return next
+        }
+        if activeConversationID == conversationID {
+            items = items.map(updated)
+            synchronizeActiveConversation()
+        } else if let index = conversations.firstIndex(where: { $0.id == conversationID }) {
+            conversations[index].items = conversations[index].items.map(updated)
+            persistConversationArchive()
         }
     }
 
